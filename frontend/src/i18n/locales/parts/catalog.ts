@@ -1,0 +1,106 @@
+// i18n keys for the "catalog" area (dashboard./storage./catalog./wizard.). tr and en identical key sets.
+export const tr: Record<string, string> = {
+  // --- dashboard. (DashboardPage) ---
+  "dashboard.title": "Tasarımlarım",
+  "dashboard.storage": "Depolama",
+  "dashboard.jobs": "İş Kuyruğu",
+  "dashboard.newDesign": "+ Yeni Tasarım",
+  "dashboard.logout": "Çıkış",
+  "dashboard.systemMetrics": "Sistem metrikleri",
+  "dashboard.thumbProgress": "Önizlemeler oluşturuluyor… {done}/{total}",
+  "dashboard.empty": "Henüz tasarım yok. \"+ Yeni Tasarım\" ile başla.",
+  "dashboard.duplicate": "Çoğalt",
+  "dashboard.confirmDelete": "\"{name}\" silinsin mi? Bu işlem geri alınamaz.",
+  "dashboard.deleting": "Siliniyor…",
+
+  // --- storage. (StoragePage) ---
+  "storage.title": "Depolama",
+  "storage.summary": "{count} varyasyon · {mb} MB",
+  "storage.styleFallback": "(stil)",
+  "storage.groupMeta": " · {kind} · {count} adet · {mb} MB",
+  "storage.deleteGroup": "Grubu sil",
+  "storage.empty": "Henüz varyasyon yok.",
+
+  // --- catalog. (ModelCatalogPage) ---
+  "catalog.title": "Bir model seç",
+  "catalog.subtitle": "Her model neyi nasıl ürettiğine göre farklı. İstediğine tıkla, tasarlamaya başla.",
+  "catalog.loading": "Modeller yükleniyor…",
+  "catalog.error": "Model listesi alınamadı (gateway erişilebilir mi?).",
+  "catalog.recommended": "Önerilen",
+  "catalog.qualityGood": "Kaliteli",
+  "catalog.fast": "Hızlı",
+  "catalog.capText": "Metin→3D",
+  "catalog.capImage": "Foto→3D",
+  "catalog.capMulti": "Çoklu-Foto→3D",
+  "catalog.gpuLine": "GPU {allowed} izinli · önerilen GPU {rec} · ~{gb} GB",
+  "catalog.sequential": "sıralı-aşama",
+  "catalog.hideDetails": "Detayları gizle",
+  "catalog.showParams": "Parametreler ({count}) & kalite",
+  "catalog.qualityLevels": "Kalite seviyeleri:",
+  "catalog.noParams": "Gelişmiş parametre yok.",
+  "catalog.designWithModel": "Bu modelle tasarla",
+  "catalog.cloudBadge": "☁ Bulut API",
+  "catalog.noGpu": "GPU gerekmez (bulut)",
+  "catalog.keyRequired": "🔒 Anahtar gerekli: {key} (.env)",
+
+  // --- wizard. (WizardPage) ---
+  "wizard.projectName": "{label} tasarımı",
+  "wizard.templatesError": "Şablonlar yüklenemedi (generate.py çalıştı mı?)",
+  "wizard.designWithText": "Metinle tasarla (AI)",
+  "wizard.step1Title": "1. Nesne türü seç",
+  "wizard.step2Title": "2. {label} şablonu seç",
+  "wizard.creating": "Tasarım oluşturuluyor…",
+};
+
+export const en: Record<string, string> = {
+  // --- dashboard. (DashboardPage) ---
+  "dashboard.title": "My Designs",
+  "dashboard.storage": "Storage",
+  "dashboard.jobs": "Job Queue",
+  "dashboard.newDesign": "+ New Design",
+  "dashboard.logout": "Sign out",
+  "dashboard.systemMetrics": "System metrics",
+  "dashboard.thumbProgress": "Generating previews… {done}/{total}",
+  "dashboard.empty": "No designs yet. Start with \"+ New Design\".",
+  "dashboard.duplicate": "Duplicate",
+  "dashboard.confirmDelete": "Delete \"{name}\"? This action cannot be undone.",
+  "dashboard.deleting": "Deleting…",
+
+  // --- storage. (StoragePage) ---
+  "storage.title": "Storage",
+  "storage.summary": "{count} variations · {mb} MB",
+  "storage.styleFallback": "(style)",
+  "storage.groupMeta": " · {kind} · {count} items · {mb} MB",
+  "storage.deleteGroup": "Delete group",
+  "storage.empty": "No variations yet.",
+
+  // --- catalog. (ModelCatalogPage) ---
+  "catalog.title": "Choose a model",
+  "catalog.subtitle": "Each model produces things differently. Click the one you want and start designing.",
+  "catalog.loading": "Loading models…",
+  "catalog.error": "Could not load the model list (is the gateway reachable?).",
+  "catalog.recommended": "Recommended",
+  "catalog.qualityGood": "High quality",
+  "catalog.fast": "Fast",
+  "catalog.capText": "Text→3D",
+  "catalog.capImage": "Image→3D",
+  "catalog.capMulti": "Multi-Image→3D",
+  "catalog.gpuLine": "GPU {allowed} allowed · recommended GPU {rec} · ~{gb} GB",
+  "catalog.sequential": "sequential-stage",
+  "catalog.hideDetails": "Hide details",
+  "catalog.showParams": "Parameters ({count}) & quality",
+  "catalog.qualityLevels": "Quality levels:",
+  "catalog.noParams": "No advanced parameters.",
+  "catalog.designWithModel": "Design with this model",
+  "catalog.cloudBadge": "☁ Cloud API",
+  "catalog.noGpu": "No GPU needed (cloud)",
+  "catalog.keyRequired": "🔒 Key required: {key} (.env)",
+
+  // --- wizard. (WizardPage) ---
+  "wizard.projectName": "{label} design",
+  "wizard.templatesError": "Templates failed to load (did generate.py run?)",
+  "wizard.designWithText": "Design with text (AI)",
+  "wizard.step1Title": "1. Choose object type",
+  "wizard.step2Title": "2. Choose {label} template",
+  "wizard.creating": "Creating design…",
+};

@@ -1,0 +1,26 @@
+# Hi3DGen / Stable3DGen worker — ISOLATED venv
+# License: MIT (code AND weights); deliberately engineered for commercial use
+#   (NVIDIA-licensed kaolin/nvdiffrast/flexicube removed upstream). See docs/LICENSES.md.
+#
+# Env note (mirrors setup_hi3dgen.sh): this worker REUSES the TRELLIS venv
+# (copied for CUDA kernel reuse — no source build). torch / xformers / spconv
+# therefore come from that TRELLIS environment and are NOT re-pinned here; this
+# file lists only the extra deps layered on top.
+#
+#   cp -a <TRELLIS>/.venv .venv && source .venv/bin/activate
+#   uv pip install --no-deps "timm==0.6.7"
+#   uv pip install -r requirements.txt
+# Weights: Stable-X/trellis-normal-v0-1 + hugoycj/StableNormal (yoso-normal-v1-8-1).
+
+# timm pinned: newer breaks the normal-predictor. install with --no-deps.
+timm==0.6.7
+# diffusers 0.30.0 PIN: 0.37 breaks the FA3 op registration under torch 2.4 infer_schema
+diffusers==0.30.0
+einops
+kornia
+accelerate
+scikit-image
+opencv-python-headless
+
+# provided by the copied TRELLIS venv (do NOT reinstall — kept here for reference):
+#   torch, torchvision, xformers, spconv, gsplat, nvdiffrast (TRELLIS build)

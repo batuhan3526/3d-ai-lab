@@ -1,0 +1,44 @@
+# SF3D (stable-fast-3d) worker — ISOLATED venv
+# Python 3.10 · CUDA 12.1 · torch 2.4.0
+# License: Stability AI Community License (source-available, NOT OSI open-source).
+#   Weights stabilityai/stable-fast-3d are HF-GATED and commercial use is free
+#   only under <USD $1M/yr + registration. See docs/LICENSES.md.
+#
+# WARNING: this stack (torch 2.4.0/cu121) is mutually INCOMPATIBLE with the other
+# workers' pins — each worker MUST live in its own venv. See docs/ARCHITECTURE.md
+# ("Per-worker environments") and 04 critical-gap #1.
+#
+# Install (from the upstream stable-fast-3d clone, mirrors setup_sf3d.sh):
+#   uv venv --python 3.10 .venv && source .venv/bin/activate
+#   uv pip install torch==2.4.0 torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cu121
+#   uv pip install -r requirements.txt
+#   # then the two local CUDA extensions (no PyPI wheel):
+#   uv pip install --no-build-isolation ./texture_baker/ ./uv_unwrapper/
+
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.4.0
+torchvision==0.19.0
+setuptools==69.5.1
+wheel
+ninja
+
+# stable-fast-3d runtime deps (upstream requirements.txt, minus the local
+# texture_baker / uv_unwrapper CUDA builds which are installed separately)
+einops
+jaxtyping
+omegaconf
+transformers
+trimesh
+rembg
+onnxruntime
+opencv-python-headless
+Pillow
+numpy
+
+# Celery worker plumbing (shared with backend/common)
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

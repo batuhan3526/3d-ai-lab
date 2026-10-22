@@ -1,0 +1,66 @@
+diff --git a/caption_fixed.py b/caption_fixed.py
+new file mode 100644
+index 0000000..6219659
+--- /dev/null
++++ b/caption_fixed.py
+@@ -0,0 +1,60 @@
++"""run_captioning'in Qwen3-VL-30B'siz varyantı: sabit el-yazımı caption + UMT5 embedding.
++
++30B VLM indirmeden (60GB+) DL3DV demo sahnesi için prompt HDF5 üretir; embedding
++sabit caption'dan bir kez hesaplanıp tüm pencere kayıtlarına yazılır (ArtiFixer
++text-dropout'la eğitildiği için genel bir caption yeterli — smoke/eval amaçlı).
++
++Kullanım: python caption_fixed.py --dl3dv_dir ... --output_dir ... --scene_id ... [--caption "..."]
++Kalan argümanlar run_captioning ile aynı.
++"""
++from __future__ import annotations
++
++import sys
++
++FIXED_CAPTION = (
++    "A smooth handheld walkthrough of a real-world scene with consistent lighting, "
++    "static geometry, and steady forward camera motion."
++)
++if "--caption" in sys.argv:
++    i = sys.argv.index("--caption")
++    FIXED_CAPTION = sys.argv[i + 1]
++    del sys.argv[i:i + 2]
++
++from data_processing.captioning import generate_captions as _gc
++
++
++class _NoModel:
++    @staticmethod
++    def from_pretrained(*a, **k):
++        return None
++
++
++_gc.Qwen3VLMoeForConditionalGeneration = _NoModel
++_gc.Qwen3VLProcessor = _NoModel
++_gc.generate_caption = lambda *a, **k: FIXED_CAPTION
++
++# Aynı caption'ın embedding'ini bir kez hesapla (274 pencere aynı metni paylaşır).
++_orig_embed = _gc.generate_text_embedding
++_cache: dict[str, object] = {}
++
++
++def _cached_embed(caption, text_encoder, tokenizer, max_len):
++    if caption not in _cache:
++        _cache[caption] = _orig_embed(caption, text_encoder, tokenizer, max_len)
++    return _cache[caption]
++
++
++_gc.generate_text_embedding = _cached_embed
++
++from data_processing import run_captioning  # noqa: E402
++
++
++def _h5_compat(*args, reverse=False, revisit=False, **kwargs):
++    """Repo bug köprüsü: run_captioning 'reverse=' geçiyor, fonksiyon 'reverse_frames=' bekliyor."""
++    return _gc.generate_caption_hdf5(*args, reverse_frames=reverse, revisit=revisit, **kwargs)
++
++
++run_captioning.generate_caption_hdf5 = _h5_compat
++
++print(f"[caption_fixed] sabit caption: {FIXED_CAPTION!r}")
++run_captioning.main()

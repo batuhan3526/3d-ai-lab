@@ -1,0 +1,46 @@
+# PartCrafter worker — ISOLATED venv
+# Python 3.11 · CUDA 12.4 · torch 2.5.1
+# License: PartCrafter code is MIT (commercial OK), BUT the default inference
+#   pipeline auto-pulls briaai/RMBG-1.4 which is NON-COMMERCIAL. Treat the
+#   assembled feature as non-commercial unless you swap the matting model.
+#   See docs/LICENSES.md.
+#
+# WARNING: torch 2.5.1/cu124 conflicts with the other workers' pins — isolate.
+#
+# Install (mirrors setup_partcrafter.sh, from the upstream PartCrafter clone):
+#   uv venv --python 3.11 .venv && source .venv/bin/activate
+#   uv pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
+#   uv pip install torch-cluster -f https://data.pyg.org/whl/torch-2.5.1+cu124.html
+#   uv pip install -r requirements.txt
+
+--index-url https://download.pytorch.org/whl/cu124
+torch==2.5.1
+torchvision==0.20.1
+
+# torch-cluster ships as a PyG wheel keyed to the exact torch/cuda build:
+#   -f https://data.pyg.org/whl/torch-2.5.1+cu124.html
+torch-cluster
+
+# inference deps (training-only extras dropped)
+diffusers
+transformers
+einops
+huggingface_hub
+opencv-python-headless
+trimesh
+omegaconf
+scikit-image
+numpy==1.26.4
+peft
+jaxtyping
+typeguard
+accelerate
+scikit-learn
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

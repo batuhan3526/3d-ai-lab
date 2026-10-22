@@ -1,0 +1,30 @@
+# VideoMDM motion worker — ISOLATED venv
+# License: MIT (code, © 2022 Guy Tevet) — retain the notice. BUT effective use is
+#   blocked commercially: the motion checkpoint runs locally (text -> HumanML3D
+#   motion), yet FULL garment animation needs SMPL/SMPL-X (GATED, non-commercial
+#   MPI) + HumanML3D Mean/Std stats + AMASS/Fit3D (non-commercial datasets).
+#   Do NOT vendor body_models/smpl/*.pkl. See docs/LICENSES.md.
+#
+# The bundled motion-only checkpoint (model000600091.pt) is local and NOT gated;
+# the text->motion path works end-to-end. SMPL-X is only needed for the blocked
+# full-animation feature.
+#
+# NOTE: torch pin inherited from the upstream VideoMDM install (no tracked setup
+# script). Follow VideoMDM's README for the torch/cuda build, then add:
+
+torch
+numpy
+Pillow
+trimesh
+# CLIP text encoder (VideoMDM conditions on pre-encoded text embeddings)
+git+https://github.com/openai/CLIP.git
+# smplx only for the (gated, non-commercial) full-garment-animation path:
+# smplx
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

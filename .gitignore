@@ -1,0 +1,58 @@
+# Python
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+*.egg-info/
+
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
+
+# Environment / secrets
+.env
+.env.local
+
+# Upstream engine clones, their envs and weights (infra/scripts/engine.sh install)
+/engines/
+
+# Runtime data — everything under data/ except the shipped base mannequins
+data/*
+!data/.gitkeep
+!data/templates/
+data/templates/*
+!data/templates/mannequins/
+data/templates/mannequins/*
+!data/templates/mannequins/manifest.json
+!data/templates/mannequins/male-a.glb
+!data/templates/mannequins/female-a.glb
+!data/templates/mannequins/female-down.glb
+!data/templates/mannequins/neutral-t.glb
+
+# Logs / pid files
+logs/*
+!logs/.gitkeep
+/run/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build artifacts
+*.tsbuildinfo
+# TS composite project emit artifacts from tsconfig.node.json (vite.config.ts)
+frontend/vite.config.js
+frontend/vite.config.d.ts

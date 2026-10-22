@@ -1,0 +1,38 @@
+# 3D Studio — minimal orchestration.
+#
+# Only the broker is containerized here. The gateway, frontend, and GPU engine
+# workers intentionally run on the HOST, because:
+#   * the workers need direct NVIDIA GPU access, and
+#   * each engine worker requires its OWN isolated venv with a mutually-incompatible
+#     torch/CUDA stack (see backend/workers/*/requirements.txt and
+#     docs/ARCHITECTURE.md → "Per-worker environments"), which cannot share one image.
+#
+# So there is no single all-in-one image. Use this to get a portable, password-able
+# Redis quickly, then run the app with infra/scripts/start-linux.sh on the host.
+#
+#   docker compose up -d redis
+#   bash infra/scripts/start-linux.sh
+#
+services:
+  redis:
+    image: redis:7-alpine
+    # Bind to loopback only. For LAN/production, set a password instead:
+    #   command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set a password}"]
+    # and point REDIS_URL at redis://:PASSWORD@host:6379/0 in .env (see SECURITY.md).
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # --- Reference only: the app services run on the host, not in containers. ---
+  # gateway (GPU-adjacent, needs the worker DB + data dirs):
+  #   cd backend/gateway && uv run uvicorn gateway.main:app --host 0.0.0.0 --port 9000
+  # frontend:
+  #   cd frontend && pnpm dev --host 0.0.0.0 --port 3000
+  # engine workers (each in its own venv, GPU-pinned via GPU_ID):
+  #   GPU_ID=0 celery -A <engine>_worker.worker.celery_app worker -Q <engine>-gpu0 ...

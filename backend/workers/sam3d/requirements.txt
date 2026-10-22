@@ -1,0 +1,38 @@
+# SAM3D-Objects worker — ISOLATED conda env "sam3d-objects"
+# Python 3.10 · CUDA 12.1 · torch 2.5.1 · pytorch3d + kaolin
+# License: SAM License (Meta custom, NOT OSI-approved). Commercial use IS
+#   permitted (no NC clause) but the full Agreement must be shipped to recipients
+#   and ITAR/trade-control + no-military + no-reverse-engineering terms apply.
+#   Weights are acceptance-gated on HF — do NOT vendor checkpoints/hf/*.
+#   See docs/LICENSES.md.
+#
+# This worker is primarily CONDA-managed (environments/default.yml pulls the full
+# CUDA 12.1 toolchain + pytorch3d + kaolin). This file lists only the pip extras
+# layered on afterwards (mirrors setup_sam3d.sh post_install). Do NOT try to
+# recreate the whole env from pip alone.
+#
+#   conda env create -f environments/default.yml && conda activate sam3d-objects
+#   pip install -e ".[dev]" ".[p3d]" ".[inference]"
+#   pip install -r requirements.txt
+
+# masking / preprocessing
+rembg
+onnxruntime
+# CRITICAL: kaolin needs numpy<2; rembg/onnxruntime pull numpy 2 -> re-pin
+numpy==1.26.4
+scikit-image==0.23.1
+
+# mesh hole-fill (utils3d RastContext) — build from git, no PyPI wheel:
+#   pip install --no-build-isolation "git+https://github.com/NVlabs/nvdiffrast.git"
+# texture-baking render (mip-splatting diff-gaussian-rasterization) — build from
+# the mip-splatting submodule (NON-COMMERCIAL Inria license, see docs/LICENSES.md):
+#   TORCH_CUDA_ARCH_LIST="8.6" pip install --no-build-isolation \
+#     <mip-splatting>/submodules/diff-gaussian-rasterization
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

@@ -1,0 +1,142 @@
+diff --git a/configs/base.yaml b/configs/base.yaml
+index 2f2f5ac..a467c51 100644
+--- a/configs/base.yaml
++++ b/configs/base.yaml
+@@ -60,4 +60,7 @@ W: 800
+ 
+ ### camera setting
+ radius: 2.5
+-fovy: 50
+\ No newline at end of file
++fovy: 50
++### F5 v2: sadece maskeli UV bolgesini yeniden boya (UV-uzayi PNG yolu; bos=tum mesh)
++region_mask: 
++keep_existing: false
+diff --git a/main.py b/main.py
+index 62a1db9..eb2e298 100644
+--- a/main.py
++++ b/main.py
+@@ -42,6 +42,11 @@ def dilate_image(image, mask, iterations):
+     search_coords = np.stack(np.nonzero(search_region), axis=-1)
+     inpaint_coords = np.stack(np.nonzero(inpaint_region), axis=-1)
+ 
++    # F5: bolge modunda her texel dolu olabilir (inpaint bos) ya da mask tamamen
++    # bos olabilir — sklearn 0 ornekle patliyor, doldurulacak bir sey yoksa dokunma
++    if inpaint_coords.shape[0] == 0 or search_coords.shape[0] == 0:
++        return image
++
+     knn = NearestNeighbors(n_neighbors=1, algorithm="kd_tree").fit(search_coords)
+     _, indices = knn.kneighbors(inpaint_coords)
+ 
+@@ -150,11 +155,20 @@ class GUI:
+ 
+         out = self.renderer.render(pose, self.cam.perspective, H, W)
+ 
+-        # valid crop region with fixed aspect ratio
++        # F5 v2: bolge gorunmeyen view'lari atla (hiz + sizinti onleme).
++        # NOT: "maskeli bolgeye zoom" DENENDI ve GERI ALINDI — SD daraltilmis
++        # tuvalin tamamini desenle doldurup kenardan-kenara yogun statik kutle
++        # uretiyordu. Tam-giysi kadraji (asagidaki standart bbox) SD'ye dogal
++        # olcek verir: tek, oransal motif + bolge ici kumas dolgusu.
++        region_mode = getattr(self, '_region_mask_t', None) is not None
++        if region_mode:
++            gen_px = ((out['cnt'].squeeze(-1) < 0.1) & (out['alpha'].squeeze(-1) > 0.5))
++            if not gen_px.any():
++                return
+         valid_pixels = out['alpha'].squeeze(-1).nonzero() # [N, 2]
+         min_h, max_h = valid_pixels[:, 0].min().item(), valid_pixels[:, 0].max().item()
+         min_w, max_w = valid_pixels[:, 1].min().item(), valid_pixels[:, 1].max().item()
+-        
++
+         size = max(max_h - min_h + 1, max_w - min_w + 1) * 1.1
+         h_start = min(min_h, max_h) - (size - (max_h - min_h + 1)) / 2
+         w_start = min(min_w, max_w) - (size - (max_w - min_w + 1)) / 2
+@@ -429,7 +443,14 @@ class GUI:
+             self.renderer.mesh.ori_albedo = self.renderer.mesh.albedo.clone()
+ 
+         if keep_ori_albedo:
+-            self.albedo = self.renderer.mesh.albedo.clone()
++            # F5: korunan dokuyu texture_size'a yeniden boyutlandir (albedo/cnt tutarli)
++            import torch.nn.functional as _F
++            _alb = self.renderer.mesh.albedo
++            if _alb.shape[0] != h or _alb.shape[1] != w:
++                _alb = _F.interpolate(_alb.permute(2, 0, 1).unsqueeze(0), size=(h, w),
++                                      mode='bilinear', align_corners=False).squeeze(0).permute(1, 2, 0).contiguous()
++                self.renderer.mesh.albedo = _alb
++            self.albedo = _alb.clone()
+             self.cnt += 1 # set to 1
+             self.viewcos_cache *= -1 # set to 1
+         
+@@ -438,10 +459,40 @@ class GUI:
+         self.renderer.mesh.viewcos_cache = self.viewcos_cache
+ 
+      
++    @torch.no_grad()
++    def _apply_region_mask(self, mask_path):
++        # UV-uzayi maske (beyaz=yeniden boya, siyah=koru). albedo [H,W] ile hizali.
++        import cv2, os
++        h = w = int(self.opt.texture_size)
++        m = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
++        if m is None:
++            raise FileNotFoundError('region_mask okunamadi: ' + str(mask_path))
++        m = cv2.resize(m, (w, h), interpolation=cv2.INTER_NEAREST)
++        if os.environ.get('REGION_MASK_FLIP_V', '0') == '1':
++            m = m[::-1].copy()
++        if os.environ.get('REGION_MASK_FLIP_U', '0') == '1':
++            m = m[:, ::-1].copy()
++        mask = (torch.from_numpy(m).to(self.device).float() / 255.0) > 0.5
++        # F5: is sonunda maske disini birebir geri yuklemek icin sakla —
++        # deblur()/sr ve view-inpaint sizintilari korunan dokuyu da degistiriyordu
++        self._region_mask_t = mask
++        self._region_keep_albedo = self.albedo.clone()
++        self.albedo[mask] = 0
++        self.cnt[mask] = 0
++        self.renderer.mesh.viewcos_cache[mask] = -1
++        self.renderer.mesh.albedo = self.albedo
++        self.renderer.mesh.cnt = self.cnt
++        print('[F5] region_mask uygulandi: ' + str(int(mask.sum().item())) + ' px yeniden boyanacak')
++
+     @torch.no_grad()
+     def generate(self):
+ 
+-        self.initialize(keep_ori_albedo=False)
++        # F5 v2: region_mask verildiyse mevcut dokuyu koru, SADECE maskeli UV bolgesini yeniden boya
++        if getattr(self.opt, 'region_mask', '') not in ('', None, 'None'):
++            self.initialize(keep_ori_albedo=True)
++            self._apply_region_mask(self.opt.region_mask)
++        else:
++            self.initialize(keep_ori_albedo=bool(getattr(self.opt, 'keep_existing', False)))
+ 
+         # vers = [0,]
+         # hors = [0,]
+@@ -480,6 +531,30 @@ class GUI:
+         self.dilate_texture()
+         self.deblur()
+ 
++        # F5 v2: bolge modunda maske disi dokuyu birebir geri yukle (deblur/sr
++        # tum dokuyu degistiriyor; "koru" garantisi ancak boyle saglanir)
++        if getattr(self, '_region_mask_t', None) is not None:
++            alb = self.renderer.mesh.albedo
++            keep = self._region_keep_albedo.to(alb.device, alb.dtype)
++            m = self._region_mask_t.to(alb.device).unsqueeze(-1).float()
++            alb = keep * (1 - m) + alb * m
++            self.renderer.mesh.albedo = alb
++            self.albedo = alb
++            print('[F5] region compose: maske disi doku birebir geri yuklendi')
++            # Egik aciyla (bulanik) boyanan veya hic gorulmeyen texel'lerin
++            # haritasini worker'a birak — engine bunlari orijinale dondurur
++            # (kumas-motif arasi gri/siyah sis lekelerinin ana kaynagi).
++            try:
++                import cv2
++                vc = self.renderer.mesh.viewcos_cache.squeeze(-1).to(alb.device)
++                lowq = (self._region_mask_t.to(alb.device) & (vc < 0.35))
++                lowq = (lowq.detach().cpu().numpy().astype('uint8')) * 255
++                cv2.imwrite(os.path.join(os.path.dirname(str(self.save_path)),
++                                         'region_lowq.png'), lowq)
++                print('[F5] region lowq: ' + str(int((lowq > 0).sum())) + ' bulanik texel isaretlendi')
++            except Exception as _e:
++                print('[F5] region lowq yazilamadi: ' + str(_e))
++
+         torch.cuda.synchronize()
+         end_t = time.time()
+         print(f'[INFO] finished generation in {end_t - start_t:.3f}s!')

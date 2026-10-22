@@ -1,0 +1,11 @@
+# Offline kumaş simülasyonu (Blender headless drape) worker — CPU-only, GPU YOK.
+# License: uygulama kodu MIT. Ağır iş, ayrı bir binary olan **Blender**
+#   (GPL-3.0) tarafından subprocess olarak yapılır — Python paketi olarak
+#   VENDOR EDİLMEZ, sistem paketi olarak kurulur:
+#       sudo apt install blender          # Debian/Ubuntu
+#   (ya da blender.org'dan indir; BLENDER_BIN ile mutlak yol verilebilir).
+#   Blender bulunamazsa `clothsim.drape` task'ı FAILURE(error="blender-missing").
+# Bu worker python-tarafında yalnız hafif bağımlılıklar kullanır (torch/CUDA YOK).
+celery>=5.4
+redis>=5.0
+# 'common' workspace paketi (celery_app, config, jobs) editable kurulur — bkz. pyproject.toml.

@@ -1,0 +1,29 @@
+3D AI Lab
+Copyright (c) 2026 Batuhan Bayraktar
+
+This product includes and/or downloads third-party AI models, each governed by its
+own license. The MIT license of this application (see LICENSE) applies to the 3D
+Studio application code ONLY. Model weights are not distributed with this repository;
+they are fetched from their upstream sources, subject to those sources' terms.
+
+Full attribution and redistribution obligations: THIRD_PARTY_LICENSES.md
+Full commercial / gated / weight-distribution matrix: docs/LICENSES.md
+
+Non-commercial models (do NOT use in a commercial product):
+  FLUX.1-dev (Black Forest Labs), meshflow (Meta FAIR NC), world-tracing
+  (CC BY-NC-ND), mip-splatting (Inria/MPII), SMPL/SMPL-X (Max-Planck),
+  briaai/RMBG-1.4, DINOv3 (Meta, gated).
+
+Source-available / conditional commercial:
+  Hunyuan3D-2.1 (Tencent Community), SF3D (Stability Community, gated),
+  SAM3D-Objects (Meta SAM License), Stable Diffusion v1.5 (OpenRAIL-M).
+
+Permissive (MIT):
+  TRELLIS, TRELLIS.2-4B, TripoSR, Hi3DGen, PartCrafter (code), VideoMDM (code),
+  BiRefNet (per upstream).
+
+No license / excluded from redistribution:
+  InTeX source (no LICENSE — used via upstream clone only), Flex4DHuman.
+
+Gated weights require accepting the vendor's license and authenticating
+(HF_TOKEN) before download. See infra/scripts/download_models.sh.

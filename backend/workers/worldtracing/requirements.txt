@@ -1,0 +1,26 @@
+# World-Tracing worker — ISOLATED venv
+# License: CC BY-NC-ND 4.0 — NON-COMMERCIAL + NO-DERIVATIVES. Do NOT ship
+#   modified/fine-tuned weights. Attribution required. Weights haoz19/object-model-6layer
+#   are HF-GATED (token + approval). The trellis2 mode additionally pulls the
+#   GATED facebook/dinov3-vitl16-pretrain-lvd1689m backbone. See docs/LICENSES.md.
+#
+# Requires the upstream world-tracing repo on PYTHONPATH and the local checkpoint
+# under checkpoints/object-6layer/model.pt (WORLDTRACING_CKPT). poisson mode uses
+# open3d Poisson reconstruction; trellis2 mode reuses the TRELLIS.2 textured path.
+#
+# NOTE: torch pin inherited from the upstream install (no tracked setup script).
+
+torch
+open3d
+trimesh
+numpy
+Pillow
+huggingface_hub
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

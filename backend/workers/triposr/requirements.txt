@@ -1,0 +1,32 @@
+# TripoSR worker — ISOLATED venv
+# License: MIT — CODE + pretrained WEIGHTS (stabilityai/TripoSR, public/ungated).
+#   Cleanest of the set; commercial use allowed, retain the MIT notice
+#   ("Tripo AI & Stability AI"). See docs/LICENSES.md.
+#
+# Requires the upstream TripoSR repo on PYTHONPATH (the `tsr` package with its
+# CUDA torchmcubes extension). Fast feed-forward, ~6GB VRAM, single-photo only.
+#
+# NOTE: exact torch pin is inherited from the upstream TripoSR install; this
+# project has no tracked setup script for it. Follow TripoSR's own README for the
+# torch/cuda build, then add the deps below. Versions here are intentionally
+# unpinned where the audit could not confirm a ground-truth pin.
+
+torch
+torchvision
+omegaconf
+einops
+transformers
+trimesh
+rembg
+onnxruntime
+Pillow
+numpy
+huggingface_hub
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

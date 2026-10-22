@@ -1,0 +1,34 @@
+# MeshFlow worker — ISOLATED venv (Python 3.10, e.g. conda meshflow-py310)
+# Python 3.10 · CUDA 12.8 · torch 2.7.1
+# License: FAIR Noncommercial Research License v1 (Meta) — NON-COMMERCIAL.
+#   Weights facebook/meshflow are HF-GATED; the image-guided branch also needs
+#   the GATED facebook/dinov3-vitl16-pretrain-lvd1689m backbone (DOUBLE-GATED).
+#   The engine raises FileNotFoundError until the ckpt is downloaded. See
+#   docs/LICENSES.md.
+#
+# WARNING: torch 2.7.1/cu128 conflicts with every other worker — isolate hard.
+#
+# Install (mirrors setup_meshflow.sh):
+#   pip install torch==2.7.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
+#   pip install torchvision==0.22.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 --no-deps
+#   pip install -r requirements.txt
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1+cu128
+# torchvision 0.22.1+cu128 requires torch==2.7.1 (install with --no-deps)
+torchvision==0.22.1+cu128
+
+diffusers==0.38.0
+einops==0.8.1
+omegaconf==2.3.0
+trimesh==4.10.1
+tqdm==4.67.3
+transformers==5.0.0rc3
+numpy
+Pillow
+open3d
+
+# Celery worker plumbing
+celery[redis]
+pydantic
+pydantic-settings

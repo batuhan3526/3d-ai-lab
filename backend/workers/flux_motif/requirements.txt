@@ -1,0 +1,46 @@
+# FLUX motif / decal worker — ISOLATED venv
+# License: FLUX.1 [dev] Non-Commercial License v1.1.1 (Black Forest Labs).
+#   NON-COMMERCIAL — production/commercial use needs a paid BFL license.
+#   black-forest-labs/FLUX.1-dev is HF-GATED (accept the license first).
+#   Generated Outputs may be used commercially, but the model may not power a
+#   commercial service. Also pulls ZhengPeng7/BiRefNet (matte, MIT per upstream)
+#   via trust_remote_code. See docs/LICENSES.md.
+#
+# Runs on DEFAULT_GPU (pin another card with GPU_ID). The 12B
+# transformer fits a 24GB card via 4-bit bitsandbytes + CPU offload.
+#
+# diffusers/transformers pins matter: newer diffusers reorganized the Flux 4-bit
+# loading path. Keep an isolated venv.
+
+diffusers==0.31.0
+transformers==4.49
+bitsandbytes
+accelerate
+sentencepiece
+protobuf
+Pillow
+numpy
+
+# BiRefNet (background matting) loads from HF at runtime via trust_remote_code —
+# not vendored. kornia/opencv used by the matte post-process.
+opencv-python-headless
+
+# Real-ESRGAN texture upscale (texture.upscale task). spandrel (MIT) loads the
+# ESRGAN_x4plus weight (BSD-3, xinntao/Real-ESRGAN) architecture-free onto CUDA.
+# The .pth weight is NOT vendored — set ESRGAN_WEIGHT or place it at
+# <ENGINES_DIR>/models/esrgan/RealESRGAN_x4plus.pth (engine.sh install flux_motif). Missing weight/
+# package → job FAILURE('esrgan-missing'). See docs/LICENSES.md.
+spandrel
+
+# OPTIONAL — NSFW safety filter (SAFETY_FILTER=log|block in .env). CPU-only.
+# LAZY imported by common/safety.py; if absent the filter is a graceful noop
+# (logs "unavailable" and never blocks). Uncomment to enable content scanning.
+#   opennsfw2
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

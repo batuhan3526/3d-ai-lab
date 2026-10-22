@@ -1,0 +1,30 @@
+[tool.uv.workspace]
+members = [
+    "backend/common",
+    "backend/gateway",
+    "backend/templates_tool",
+    "backend/workers/clothsim",
+    "backend/workers/cloud",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI route'larında Depends()/Header() argüman default'u idiomatic'tir; B008 muaf.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.File", "fastapi.Form"]
+
+[tool.pytest.ini_options]
+addopts = "-v --tb=short --import-mode=importlib"
+testpaths = [
+    "backend/common/tests",
+    "backend/gateway/tests",
+    "backend/templates_tool/tests",
+    "backend/workers/clothsim/tests",
+    "backend/workers/cloud/tests",
+]

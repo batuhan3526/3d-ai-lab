@@ -1,0 +1,31 @@
+# InTeX retexture worker — ISOLATED venv
+# License caveats (see docs/LICENSES.md):
+#   * InTeX's OWN source has NO license file (all-rights-reserved by upstream
+#     author). DO NOT vendor/redistribute InTeX source — clone it from
+#     github.com/ashawkey/InTeX at setup time and run it as a subprocess.
+#   * The texturing model is SD1.5 (runwayml/stable-diffusion-v1-5) =
+#     CreativeML OpenRAIL-M: commercial-capable but you MUST propagate the license
+#     + Attachment A use-based restrictions downstream.
+#
+# This worker decimates + xatlas-UV-unwraps arbitrary meshes (_ensure_uv) then
+# calls InTeX's main.py as a subprocess (configs/base.yaml). It does not import
+# InTeX in-process, so InTeX's own heavy deps live in the InTeX clone's env; the
+# deps below are what this worker wrapper needs.
+
+diffusers
+transformers
+accelerate
+xatlas
+fast-simplification
+trimesh
+opencv-python-headless
+Pillow
+numpy
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

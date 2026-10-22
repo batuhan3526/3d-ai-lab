@@ -1,0 +1,40 @@
+# Hunyuan3D-2.1 worker — ISOLATED venv
+# Python 3.11 · CUDA 12.4 · torch 2.5.1 (per hunyuan_worker/__init__.py)
+# License: Tencent Hunyuan 3D 2.1 Community License — NON-COMMERCIAL-ish:
+#   free only inside the "Territory" (excludes EU/UK/South Korea); >1M MAU needs a
+#   separate Tencent license. Bespoke source-available license, NOT open source.
+#   See docs/LICENSES.md.
+#
+# Requires the upstream Hunyuan3D-2.1 repo checked out and on PYTHONPATH
+# (hy3dshape + hy3dpaint). Set HUNYUAN_DIR / ENGINE_ROOT to that clone — the
+# textured engine does os.chdir into it. The paint stage additionally pins
+# diffusers==0.31.0 and needs a RealESRGAN checkpoint.
+#
+# Engines: hunyuan-image (shape-only), hunyuan-textured (PBR, ~22GB peak),
+#          hunyuan-mv (multi-view, tencent/Hunyuan3D-2mv — NOT gated).
+
+--index-url https://download.pytorch.org/whl/cu124
+torch==2.5.1
+torchvision==0.20.1
+
+# shape + paint pipeline deps (hy3dshape / hy3dpaint import these)
+diffusers==0.31.0
+transformers
+accelerate
+trimesh
+opencv-python-headless
+scikit-image
+omegaconf
+einops
+Pillow
+numpy
+# realesrgan / basicsr for the paint super-res stage (hunyuan-textured)
+realesrgan
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv
