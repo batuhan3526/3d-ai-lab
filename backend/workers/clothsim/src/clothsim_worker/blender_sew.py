@@ -136,14 +136,19 @@ def _render_previews(bpy, prefix: str, garment, body, height: float,
     so = bpy.data.objects.new("Gunes", sun)
     so.rotation_euler = (math.radians(50), math.radians(10), math.radians(-30))
     scene.collection.objects.link(so)
-    # Ortografik kamera.
+    # Ortografik kamera: üst gövde (0.285H–1.035H); kıyafet daha aşağı iniyorsa
+    # (midi/uzun etek) alt kenar etek ucuna uzar.
+    ev = garment.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    g_min = min((ev.matrix_world @ v.co).z for v in ev.data.vertices) if len(ev.data.vertices) else height
+    z_hi = height * 1.035
+    z_lo = min(height * 0.285, g_min - 0.04)
     cam = bpy.data.cameras.new("Kamera")
     cam.type = "ORTHO"
-    cam.ortho_scale = height * 0.75
+    cam.ortho_scale = z_hi - z_lo
     co = bpy.data.objects.new("Kamera", cam)
     scene.collection.objects.link(co)
     scene.camera = co
-    zc = height * 0.66
+    zc = 0.5 * (z_hi + z_lo)
     out = []
     all_views = {
         # Blender'da ön yüz −Y'ye bakar (glTF +Z).

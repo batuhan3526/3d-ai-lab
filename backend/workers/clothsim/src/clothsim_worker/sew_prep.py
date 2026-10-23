@@ -46,6 +46,9 @@ _INTERIOR_CLEAR = 0.6
 DEFAULT_GAP_M = 0.06
 # Kol kapsülünden itme boşluğu (m).
 _ARM_GAP_M = 0.03
+# Kloş etek belinin gövdeden başlangıç boşluğu (m): çarpışma kalınlığı (6 mm) +
+# mesafe (4 mm) kadar — fazlası bel çevresini büyütüp eteği kaydırır.
+_SKIRT_CLEAR_M = 0.01
 
 # Tasarıma göre parça rolü (yerleşim stratejisi). Tanımsız tasarımlarda ada göre tahmin.
 ROLE_BY_DESIGN: dict[str, dict[str, str]] = {
@@ -689,10 +692,79 @@ def place_sleeve(inst: dict, piece: dict, body: dict, x_start: float, gap: float
                                         "scale_max": float(Rw.max() / R), "x_start": x_start}
 
 
+def skirt_rest_y(verts: np.ndarray, faces: np.ndarray | None, body: dict,
+                 circumference: float, top_y: float, step: float = 0.005) -> float:
+    """Etek belinin gövdede oturacağı yükseklik: belden aşağı tarayıp gövde çevresinin
+    etek bel çevresine ilk ulaştığı seviye (+1 cm). Bel çevresi gövde belinden darsa
+    (ya da kesit ölçülemezse) `top_y` aynen döner.
+
+    FreeSewing Sandy'nin bel bandı varsayılan olarak bel ile kalçanın ortasına göre
+    kesilir (waistbandPosition %50) → bele konan etek bol kalıp kalçaya kayıyor,
+    bel kenarı buruşuyordu."""
+    if faces is None:
+        return top_y
+    from common.body_morph import _slice_stats
+    H = body["height"]
+    y_waist, y_hip = body["levels"]["waist"], body["levels"]["hip"]
+
+    def girth(y: float) -> float:
+        return _slice_stats(verts, faces, y, H)["girth"]
+
+    if girth(y_waist) <= 0 or circumference <= girth(y_waist) * 1.01:
+        return top_y
+    y = y_waist
+    while y > y_hip:
+        y -= step
+        if girth(y) >= circumference:
+            return min(top_y, y + 0.01)
+    return min(top_y, y_hip + 0.01)
+
+
+def section_polar(verts: np.ndarray, faces: np.ndarray, body: dict, y: float,
+                  n: int = 720) -> dict | None:
+    """Y=y gövde kesitinin (kollar/eller hariç) konveks zarfı, kutupsal tablo olarak:
+    açı φ (0 = ön +z, +π/2 = +x) → yarıçap; merkez (0, cz). Kesit yoksa None."""
+    from scipy.spatial import ConvexHull
+
+    from common.body_morph import _CLUSTER_GAP, _TORSO_X, _clusters, _section_points
+    H = body["height"]
+    pts = _section_points(verts, faces, y)
+    cls = [c for c in _clusters(pts, _CLUSTER_GAP * H) if abs(float(c[:, 0].mean())) < _TORSO_X * H]
+    if not cls:
+        return None
+    P = np.concatenate(cls)
+    if len(P) < 3:
+        return None
+    try:
+        hull = P[ConvexHull(P, qhull_options="QJ").vertices]
+    except Exception:  # noqa: BLE001 — dejenere kesit
+        return None
+    cz = 0.5 * (float(hull[:, 1].max()) + float(hull[:, 1].min()))
+    phi = np.linspace(-math.pi, math.pi, n + 1)
+    d = np.column_stack([np.sin(phi), np.cos(phi)])  # (x, z) yönü
+    # Işın–zarf kenarı kesişimi: c + t·d = a + u·(b − a), u ∈ [0, 1].
+    a = hull - [0.0, cz]
+    e = np.roll(a, -1, axis=0) - a
+    den = d[:, None, 0] * e[None, :, 1] - d[:, None, 1] * e[None, :, 0]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (a[None, :, 0] * e[None, :, 1] - a[None, :, 1] * e[None, :, 0]) / den
+        u = (a[None, :, 0] * d[:, None, 1] - a[None, :, 1] * d[:, None, 0]) / den
+    ok = (np.abs(den) > 1e-12) & (t > 0) & (u >= -1e-9) & (u <= 1 + 1e-9)
+    r = np.where(ok, t, np.inf).min(axis=1)
+    if not np.isfinite(r).all():
+        return None
+    xy = d * r[:, None]
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(xy, axis=0).T))])
+    s -= np.interp(0.0, phi, s)  # yay uzunluğu ön ortadan (φ=0) işaretli
+    return {"phi": phi, "r": r, "s": s, "perimeter": float(s[-1] - s[0]), "cz": cz}
+
+
 def place_circle_skirt(inst: dict, piece: dict, body: dict, verts: np.ndarray,
-                       top_y: float, gap: float) -> tuple[np.ndarray, dict]:
+                       top_y: float, gap: float,
+                       faces: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
     """Kloş eteği koniye izometrik sar: bel yayının merkezi = koni tepesi; katlama
-    (ön orta) +z'de, R yarısı +x'e."""
+    (ön orta) +z'de, R yarısı +x'e. `faces` verilirse bel yüksekliği etek bel
+    çevresine göre ayarlanır (skirt_rest_y)."""
     pts = inst["pts"] / 1000.0
     edges = {e["id"]: e for e in piece.get("edges") or []}
     poly = np.asarray(piece["seam_line"], dtype=float) / 1000.0
@@ -730,8 +802,49 @@ def place_circle_skirt(inst: dict, piece: dict, body: dict, verts: np.ndarray,
     r3 = rho * ratio
     drop = rho * math.sqrt(max(1e-6, 1 - ratio ** 2))
     rho_w = float(rho.min())
+    top_set = top_y
+    top_y = skirt_rest_y(verts, faces, body, 2 * math.pi * rho_w * ratio, top_y)
     y = top_y - (drop - rho_w * math.sqrt(max(1e-6, 1 - ratio ** 2)))
-    # Kesit: gövdenin bel hizasındaki en/boy oranında ELİPS (aynı çevre) — dairesel
+    circ = 2 * math.pi * rho_w * ratio
+    sec = section_polar(verts, faces, body, top_y) if faces is not None else None
+    if sec is not None:
+        # Kesit: bel halkası gövdenin gerçek bel kesitine (konveks zarf, mezura) uyar,
+        # etek bel çevresine ölçeklenir; aşağısı kloş açıklığı kadar radyal dışarıda.
+        # Elips + geniş boşluk beli köşegenlerde %30-50 şişiriyordu → etek bol kalıp
+        # kayıyor, bel kenarı buruşuyordu.
+        # Her halka (bel + kloş payı d) kendi çevresi 2π·r3 olacak şekilde ölçeklenir ve
+        # yay uzunluğuyla parametrelenir → çevresel uzama her yerde 1 (yalnız radyal
+        # ötelemede köşe sektörleri sıkışıp etek ucunu içe kıvırıyordu).
+        k = circ / max(sec["perimeter"], 1e-6)
+        ph = sec["phi"]
+        r_w = k * sec["r"]
+        dv = r3 - rho_w * ratio
+        levels = np.linspace(0.0, max(float(dv.max()), 1e-6), 97)
+        frac = np.clip(dv / levels[1], 0, len(levels) - 1)
+        i0 = np.minimum(frac.astype(int), len(levels) - 2)
+        w = (frac - i0)[:, None]
+        XZ = np.zeros((len(pts), 2))
+        for li, dd in enumerate(levels):
+            m = (i0 == li) | (i0 + 1 == li)
+            if not m.any():
+                continue
+            rr = r_w + dd
+            xy = np.column_stack([rr * np.sin(ph), rr * np.cos(ph)])
+            s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(xy, axis=0).T))])
+            s -= np.interp(0.0, ph, s)
+            per = circ + 2 * math.pi * dd
+            sc = per / max(float(s[-1] - s[0]), 1e-9)
+            phi = np.interp(theta[m] / (2 * math.pi) * per, s * sc, ph)
+            rad = sc * np.interp(phi, ph, rr)
+            q = np.column_stack([rad * np.sin(phi), rad * np.cos(phi)])
+            wt = np.where(i0[m] == li, 1.0 - w[m, 0], w[m, 0])[:, None]
+            XZ[m] += wt * q
+        P = np.column_stack([XZ[:, 0], y, sec["cz"] + XZ[:, 1]])
+        pushed, kmax = push_out_radial(P, body.get("profile_tight", body["profile"]), _SKIRT_CLEAR_M)
+        return P, {"ratio": ratio, "section": "body", "scale": round(k, 4), "pushed": pushed,
+                   "max_push_ratio": kmax, "waist_circumference_m": round(circ, 4),
+                   "top_y": round(top_y, 4), "top_lowered_m": round(top_set - top_y, 4)}
+    # Yedek kesit: gövdenin bel hizasındaki en/boy oranında ELİPS (aynı çevre) — dairesel
     # koni beli yanlardan keser; elips gövdeyi daha az ölçekle sarar.
     W = _torso_points(verts, body, top_y - 0.06, top_y + 0.02)
     if len(W) >= 10:
@@ -751,7 +864,9 @@ def place_circle_skirt(inst: dict, piece: dict, body: dict, verts: np.ndarray,
     P = np.column_stack([x, y, z])
     prof = body["profile"]
     pushed, kmax = push_out_radial(P, prof, gap * 0.5)
-    return P, {"ratio": ratio, "aspect": e, "pushed": pushed, "max_push_ratio": kmax}
+    return P, {"ratio": ratio, "section": "ellipse", "aspect": e, "pushed": pushed, "max_push_ratio": kmax,
+               "waist_circumference_m": round(circ, 4),
+               "top_y": round(top_y, 4), "top_lowered_m": round(top_set - top_y, 4)}
 
 
 def surface_samples(verts: np.ndarray, faces: np.ndarray, n: int = 80_000,
@@ -773,11 +888,13 @@ def surface_samples(verts: np.ndarray, faces: np.ndarray, n: int = 80_000,
 
 
 def body_radial_profile(verts: np.ndarray, body: dict, dy: float = 0.015,
-                        sectors: int = 36, faces: np.ndarray | None = None) -> dict:
+                        sectors: int = 36, faces: np.ndarray | None = None,
+                        dilate: bool = True) -> dict:
     """Gövdenin (kollar hariç) yükseklik × açı ızgarasında en büyük yarıçapı.
 
     Merkez ekseni: x=0, z=z0 (gövde orta). Yüzey örneklerinden kurulur, komşu
-    hücrelerle genişletilir (dilate) → güvenli bir dış sınır."""
+    hücrelerle genişletilir (dilate) → güvenli bir dış sınır. dilate=False: sıkı
+    profil (gövdeye oturan kenarlar için, ör. etek beli)."""
     src = surface_samples(verts, faces) if faces is not None else verts
     P = _torso_points(src, body, -1.0, 10.0)
     z0 = 0.5 * (float(P[:, 2].max()) + float(P[:, 2].min()))
@@ -798,6 +915,8 @@ def body_radial_profile(verts: np.ndarray, body: dict, dy: float = 0.015,
         grid = np.where(empty, nb, grid)
     rowmax = grid.max(axis=1, keepdims=True)
     grid = np.where(grid > 0, grid, rowmax)
+    if not dilate:
+        return {"grid": grid, "y0": y0, "dy": dy, "sectors": sectors, "z0": z0}
     g = grid.copy()
     for di in (-1, 1):
         g = np.maximum(g, np.roll(grid, di, axis=1))
@@ -958,9 +1077,12 @@ def build_sew_input(pieces_doc: dict, body_verts: np.ndarray, body_faces: np.nda
             P, sinfo = place_sleeve(insts[i], by_name[insts[i]["name"]], body, x_start, 0.03)
             placed[i] = P
             info["roles"][f"{insts[i]['name']}@{insts[i]['side']}"] = sinfo
+    if "circle_skirt" in roles.values():
+        body["profile_tight"] = body_radial_profile(bv, body, faces=body_faces, dilate=False)
     for i in roles:
         if roles[i] == "circle_skirt":
-            P, cinfo = place_circle_skirt(insts[i], by_name[insts[i]["name"]], body, bv, top_skirt, gap)
+            P, cinfo = place_circle_skirt(insts[i], by_name[insts[i]["name"]], body, bv, top_skirt, gap,
+                                          faces=np.asarray(body_faces))
             placed[i] = P
             info["roles"][f"{insts[i]['name']}@{insts[i]['side']}"] = cinfo
     # L örnekleri dünya x'inde aynala (katlı tam parça F zaten iki yarılı).
@@ -977,7 +1099,10 @@ def build_sew_input(pieces_doc: dict, body_verts: np.ndarray, body_faces: np.nda
     prof = body["profile"]
     rp = 0
     for i in roles:
-        if roles[i] != "sleeve":
+        if roles[i] == "circle_skirt":
+            n_hit, _k = push_out_radial(placed[i], body["profile_tight"], _SKIRT_CLEAR_M)
+            rp += n_hit
+        elif roles[i] != "sleeve":
             n_hit, _k = push_out_radial(placed[i], prof, 0.02)
             rp += n_hit
     info["arm_pushed_vertices"] = moved

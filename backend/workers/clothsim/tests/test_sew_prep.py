@@ -308,3 +308,29 @@ def test_real_blender_sews_tube_on_mannequin(tmp_path, female_body):
     ext = g.bounds[1] - g.bounds[0]
     assert ext[1] < 0.6 and ext[0] < 0.7  # patlama yok (tüp ~0.42 m boy)
     assert g.bounds[0][1] > 0.4  # mankenden düşmedi
+
+
+def test_section_polar_matches_girth(female_body):
+    from common.body_morph import _slice_stats
+    v, f = female_body
+    b = sp.analyze_body(v, f)
+    y = b["levels"]["waist"]
+    sec = sp.section_polar(v, f, b, y)
+    girth = _slice_stats(v, f, y, b["height"])["girth"]
+    assert sec is not None and abs(sec["perimeter"] - girth) / girth < 0.02
+    assert np.all(np.diff(sec["s"]) >= 0) and abs(np.interp(0.0, sec["phi"], sec["s"])) < 1e-9
+
+
+def test_skirt_rest_y_lowers_loose_waist(female_body):
+    from common.body_morph import _slice_stats
+    v, f = female_body
+    b = sp.analyze_body(v, f)
+    lv, H = b["levels"], b["height"]
+    top = lv["waist"] + 0.03
+    g_w = _slice_stats(v, f, lv["waist"], H)["girth"]
+    g_h = _slice_stats(v, f, lv["hip"], H)["girth"]
+    assert sp.skirt_rest_y(v, f, b, g_w, top) == top  # bele tam → yerinde
+    assert sp.skirt_rest_y(v, None, b, (g_w + g_h) / 2, top) == top  # kesit yok → yerinde
+    y = sp.skirt_rest_y(v, f, b, (g_w + g_h) / 2, top)  # bol → bel ile kalça arasına
+    assert lv["hip"] < y < lv["waist"]
+    assert _slice_stats(v, f, y - 0.01, H)["girth"] >= (g_w + g_h) / 2

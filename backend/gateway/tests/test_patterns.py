@@ -283,6 +283,20 @@ def test_draft_male_and_options(ctx):
     assert fb["sleeve"]["area_cm2"] > 1.5 * fa["sleeve"]["area_cm2"]  # uzun kol
 
 
+def test_sandy_rise_option(ctx):
+    client, _ = ctx
+
+    def waist_mm(opts):
+        doc = client.get(_draft(client, "sandy", body=BODY_F, options=opts)["pieces_url"]).json()
+        e = {x["id"]: x for p in doc["pieces"] for x in p["edges"]}
+        return 2 * e["skirt.waist"]["length_mm"]  # katta kesilen tam parça: yarı yay
+
+    bel, orta = waist_mm({"rise": "bel"}), waist_mm({})
+    meas = client.post("/patterns/measurements/estimate", json=BODY_F, headers=AUTH).json()["measurements"]
+    assert bel == pytest.approx(meas["waist"], rel=0.02)  # belde: bel çevresi
+    assert orta == pytest.approx((meas["waist"] + meas["hips"]) / 2, rel=0.02)  # varsayılan: ortada
+
+
 @pytest.mark.parametrize("design", ["aaron", "sven", "hugo", "simon", "bella", "titan", "lily", "waralee"])
 def test_draft_other_designs(ctx, design):
     client, _ = ctx

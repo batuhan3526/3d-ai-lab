@@ -251,6 +251,10 @@ CATALOG: list[dict[str, Any]] = [
                 {"id": "yarim", "label_tr": "Yarım daire", "set": {"circleRatio": 0.50}},
                 {"id": "tam", "label_tr": "Tam daire", "set": {"circleRatio": 1.0}},
             ]},
+            {"id": "rise", "label_tr": "Oturduğu yer", "default": "orta", "choices": [
+                {"id": "bel", "label_tr": "Belde", "set": {"waistbandPosition": 0.0}},
+                {"id": "orta", "label_tr": "Bel ile kalça arası", "set": {"waistbandPosition": 0.5}},
+            ]},
         ],
     },
     {
