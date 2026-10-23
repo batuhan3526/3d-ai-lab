@@ -14,12 +14,19 @@ warn() { printf '\033[1;33m!! %s\033[0m\n' "$*" >&2; }
 die()  { printf '\033[1;31mxx %s\033[0m\n' "$*" >&2; exit 1; }
 
 # --- .env -------------------------------------------------------------------
+# Parsed line by line (not sourced): values with spaces need no quotes, nothing in
+# .env is ever executed, and variables already set in the shell take precedence.
 load_dotenv() {
   [ -f "$REPO_ROOT/.env" ] || return 0
-  set -a
-  # shellcheck disable=SC1091
-  . "$REPO_ROOT/.env"
-  set +a
+  local line key val
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    case "$line" in ''|'#'*) continue ;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    case "$val" in \"*\") val="${val:1:-1}" ;; \'*\') val="${val:1:-1}" ;; esac
+    [ -n "${!key+x}" ] || export "$key=$val"
+  done < "$REPO_ROOT/.env"
 }
 
 load_dotenv
