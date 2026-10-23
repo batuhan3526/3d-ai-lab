@@ -125,3 +125,100 @@ def test_garment_span_guard(ratio, gt, ok):
     else:
         with pytest.raises(ValueError, match="kıyafete benzemiyor"):
             D.check_garment_span(ratio, 1.0, gt)
+
+
+# --- kayıt (register_body) + şekil denetimleri ------------------------------------
+def _torso_garment(v, f, lm, s, pos, ease=1.06, depth=1.0):
+    """Mankenin kendi gövde yüzeyinden kıyafet: kollar/eller hariç kalça→omuz, yatayda `ease`
+    şişirilmiş, derinlik `depth` ile basık (üretim motorlarının tipik hatası), sonra
+    bilinen ölçek/konumla kıyafet çerçevesine taşınmış."""
+    H = lm["H"]
+    keep = ~D.arm_vertices(v, lm) & (v[:, 1] > lm["levels"]["hip"] - 0.06 * H) \
+        & (v[:, 1] < lm["shoulder_y"] + 0.01 * H) & (np.abs(v[:, 0]) < 1.3 * lm["shoulder_x"])
+    ff = f[keep[f].all(axis=1)]
+    used = np.unique(ff)
+    remap = -np.ones(len(v), int)
+    remap[used] = np.arange(len(used))
+    g = v[used].copy()
+    cz = lm["chest_z"]
+    g[:, 0] *= ease
+    g[:, 2] = cz + (g[:, 2] - cz) * ease * depth
+    return g * s + pos, remap[ff]
+
+
+def _register(gv, gf, lm, v, f, gt="shirt"):
+    prof = D.garment_profile(gv, None)
+    occ = D.garment_occupancy(gv, gf, 0.008 * prof["H"])
+    return D.register_body(occ, prof, lm, D.body_rings(v, f, lm, gt), gt)
+
+
+@pytest.mark.parametrize("depth", [1.0, 0.7])
+def test_register_recovers_scale_and_position(depth):
+    v, f, lm = _body()
+    s_true, pos = 3.0, np.array([0.0, -0.4, 0.15])   # motor çıktıları x=0 ortalı
+    gv, gf = _torso_garment(v, f, lm, s_true, pos, depth=depth)
+    tr, rep = _register(gv, gf, lm, v, f)
+    s = tr["scale"]
+    H = lm["H"] * s_true
+    assert abs(s / s_true - 1) < 0.10, rep
+    # bel, kıyafetin belinde; gövde ön-arka ortada (basık derinlikte de öne kaçmaz)
+    waist = lambda sc, p: lm["levels"]["waist"] * sc + p[1]  # noqa: E731
+    assert abs(waist(s, tr["position"]) - waist(s_true, pos)) < 0.04 * H, rep
+    cz = lambda sc, p: lm["chest_z"] * sc + p[2]  # noqa: E731
+    assert abs(cz(s, tr["position"]) - cz(s_true, pos)) < 0.03 * H, rep
+
+
+def test_facing_fix_turns_sideways_garment():
+    v = np.random.default_rng(0).normal(size=(500, 3)) * [0.2, 1.0, 0.6]
+    R = D.facing_fix(v)
+    assert np.allclose(np.ptp(v @ R.T, axis=0), np.ptp(v, axis=0)[[2, 1, 0]])
+    assert np.allclose(D.facing_fix(v * [3, 1, 1]), np.eye(3))
+
+
+def test_shape_guard_rejects_flat_and_legged():
+    v, f, lm = _body()
+    with pytest.raises(ValueError, match="yatık"):
+        D.check_garment_shape(v[:, [0, 2, 1]], "shirt")       # yatırılmış
+    with pytest.raises(ValueError, match="bacak"):
+        D.check_garment_shape(v, "shirt")                     # tam figür
+    D.check_garment_shape(v, "pants")                        # alt giyimde bacak olağan
+    gv, _ = _torso_garment(v, f, lm, 1.0, np.zeros(3))
+    D.check_garment_shape(gv, "shirt")
+
+
+def test_pole_cut_trims_stand():
+    v, f, lm = _body()
+    gv, _ = _torso_garment(v, f, lm, 1.0, np.zeros(3))
+    y0 = gv[:, 1].min()
+    pole = np.column_stack([np.random.default_rng(1).normal(0, 0.003, 400),
+                            np.linspace(y0 - 0.4, y0, 400), np.full(400, lm["chest_z"])])
+    prof = D.garment_profile(np.vstack([gv, pole]), None)
+    cut = D.pole_cut(prof)
+    assert cut is not None and y0 - 0.05 < cut <= y0 + 0.03
+    assert D.pole_cut(D.garment_profile(gv, None)) is None
+
+
+def test_sleeveless_arms_clear_flared_skirt():
+    """Kolsuz + kloş etek: varsayılan duruşta kol eteği keser; seçilen yön kesmez."""
+    v, f, lm = _body()
+    H = lm["H"]
+    lv = lm["levels"]
+    gv, gf = _torso_garment(v, f, lm, 1.0, np.zeros(3))
+    # belden aşağı geniş açılan koni (etek): bel yarıçapı → 3.5 kat, diz hizasına
+    y0, y1 = lv["waist"], lv["crotch"] - 0.12 * H
+    r0 = lm["waist_half"] * 1.1
+    cone_v, cone_f = _tube([0, y1, lm["waist_z"]], [0, y0, lm["waist_z"]], 1.0, sections=48, rings=16)
+    tt = (cone_v[:, 1] - y1) / (y0 - y1)
+    rad = r0 * (1 + 2.5 * (1 - tt))
+    cone_v[:, 0] *= rad
+    cone_v[:, 2] = lm["waist_z"] + (cone_v[:, 2] - lm["waist_z"]) * rad
+    allv = np.vstack([gv, cone_v])
+    allf = np.vstack([gf, cone_f + len(gv)])
+    prof = D.garment_profile(allv, None)
+    occ = D.garment_occupancy(allv, allf, 0.008 * prof["H"])
+    smps = {sd: D.arm_samples(v, lm, sd) for sd in (1, -1)}
+    zero = np.zeros(3)
+    before = max(D.arm_crossing(occ, smps[sd], D.default_arm_dir(sd), 1.0, zero) for sd in (1, -1))
+    dirs, rep = D.clear_arm_dirs(occ, smps, 1.0, zero)
+    after = max(D.arm_crossing(occ, smps[sd], dirs[sd], 1.0, zero) for sd in (1, -1))
+    assert before > 0.03 and after < 0.5 * before, (before, after, rep)

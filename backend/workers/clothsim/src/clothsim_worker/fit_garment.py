@@ -55,6 +55,24 @@ def _adjacency(faces: np.ndarray, n: int):
     return A, np.maximum(np.asarray(A.sum(axis=1)).ravel(), 1)
 
 
+# Yoğun mesh'lerde (1M+ köşe) bellek/süre sınırı: işaretli mesafe parça parça; itme
+# kaynakları çok fazlaysa küçük hücrelerde birleştirilir (hücrenin en büyük itmesi).
+_CHUNK = 100_000
+_SRC_CHUNK = 512
+_MAX_SOURCES = 3_000
+
+
+def _thin_sources(P: np.ndarray, req: np.ndarray, src: np.ndarray, radius: float) -> np.ndarray:
+    """Kaynak sayısı _MAX_SOURCES'u aşarsa `radius/6` hücrelerinde en büyük itmeli
+    köşeyi temsilci bırak (yayılım koni düşüşlü olduğundan fark hücre boyu kadar)."""
+    if len(src) <= _MAX_SOURCES:
+        return src
+    key = np.floor(P[src] / (radius / 6)).astype(np.int64)
+    order = np.argsort(-req[src], kind="stable")
+    _, first = np.unique(key[order], axis=0, return_index=True)
+    return src[order[first]]
+
+
 def fit_vertices(gv: np.ndarray, gf: np.ndarray, bpts: np.ndarray, bnrm: np.ndarray,
                  margin: float = 0.01, rounds: int = 5, radius: float = 0.16,
                  deep: float = 0.04, reach: float = 0.25, smooth_iters: int = 24,
@@ -80,13 +98,17 @@ def fit_vertices(gv: np.ndarray, gf: np.ndarray, bpts: np.ndarray, bnrm: np.ndar
     k = 48  # geniş, mesafe-ağırlıklı komşuluk → düşük poligonlu mankenin köşeleri yumuşar
 
     def signed(P: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        dist, nb = tree.query(P, k=k)
-        w = np.exp(-(dist / 0.025) ** 2) + 1e-12  # ~2.5 cm Gauss çekirdeği
-        w /= w.sum(axis=1, keepdims=True)
-        p = (bpts[nb] * w[:, :, None]).sum(axis=1)
-        n = (bnrm[nb] * w[:, :, None]).sum(axis=1)
-        n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-12)
-        return ((P - p) * n).sum(axis=1), n, dist[:, 0]
+        d_out, n_out, near_out = np.empty(len(P)), np.empty((len(P), 3)), np.empty(len(P))
+        for a in range(0, len(P), _CHUNK):        # parçalı: yoğun mesh'te bellek sınırlı
+            dist, nb = tree.query(P[a:a + _CHUNK], k=k, workers=-1)
+            w = np.exp(-(dist / 0.025) ** 2) + 1e-12  # ~2.5 cm Gauss çekirdeği
+            w /= w.sum(axis=1, keepdims=True)
+            p = (bpts[nb] * w[:, :, None]).sum(axis=1)
+            n = (bnrm[nb] * w[:, :, None]).sum(axis=1)
+            n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-12)
+            d_out[a:a + _CHUNK] = ((P[a:a + _CHUNK] - p) * n).sum(axis=1)
+            n_out[a:a + _CHUNK], near_out[a:a + _CHUNK] = n, dist[:, 0]
+        return d_out, n_out, near_out
 
     def poking(d: np.ndarray, near: np.ndarray) -> np.ndarray:
         return (d < 0) & (d > -deep) & (near < reach)
@@ -102,10 +124,14 @@ def fit_vertices(gv: np.ndarray, gf: np.ndarray, bpts: np.ndarray, bnrm: np.ndar
             break
         gtree = cKDTree(P)
         mag = np.zeros(len(P))
-        for j, nbrs in zip(src, gtree.query_ball_point(P[src], radius)):
-            nbrs = np.asarray(nbrs, dtype=int)
-            fall = 1.0 - np.linalg.norm(P[nbrs] - P[j], axis=1) / radius
-            np.maximum.at(mag, nbrs, req[j] * fall)
+        mag[src] = req[src]
+        src = _thin_sources(P, req, src, radius)
+        for a in range(0, len(src), _SRC_CHUNK):   # komşu listeleri parça parça (bellek)
+            part = src[a:a + _SRC_CHUNK]
+            for j, nbrs in zip(part, gtree.query_ball_point(P[part], radius)):
+                nbrs = np.asarray(nbrs, dtype=int)
+                fall = 1.0 - np.linalg.norm(P[nbrs] - P[j], axis=1) / radius
+                np.maximum.at(mag, nbrs, req[j] * fall)
         mag[d <= -deep] = 0.0
         mag[fz] = 0.0
         # Beden kumaşı aşağı itmez (kalça/kalça arkası eteği aşağı çekip esnetiyordu):
