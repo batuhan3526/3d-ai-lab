@@ -385,6 +385,9 @@ def _ensure_view_mesh(project_id: str, faces: int | None = None) -> Path:
     # bölgelerine denk gelir → düşük/orta çözünürlükte beyaz kılcal çizgiler ve
     # beyaz ince üçgenler (T1). Doku yoksa eski gri fallback korunur.
     orig_uv = np.asarray(uv, dtype=np.float64) if has_uv else None
+    # Tek katman (açık yüzeyli) kumaş çift taraflı işaretlenir; yeni malzemeye taşınmazsa
+    # görüntüleyicide arkası dönük yüzler (elbisenin önü yer yer) kaybolur.
+    double_sided = bool(getattr(getattr(m.visual, "material", None), "doubleSided", False))
     orig_tex = None
     if orig_uv is not None:
         _mat = getattr(m.visual, "material", None)
@@ -445,7 +448,8 @@ def _ensure_view_mesh(project_id: str, faces: int | None = None) -> Path:
             tex_img = Image.new("RGB", (16, 16), (204, 204, 204))
         out.visual = trimesh.visual.TextureVisuals(
             uv=uvs,
-            material=trimesh.visual.material.PBRMaterial(baseColorTexture=tex_img))
+            material=trimesh.visual.material.PBRMaterial(baseColorTexture=tex_img,
+                                                         doubleSided=double_sided))
     out.export(str(view))
     return view
 

@@ -63,6 +63,27 @@ def test_big_mesh_view_is_decimated(client, monkeypatch):
     assert len(orig.faces) == 1280  # tam çözünürlük korunur
 
 
+def test_view_keeps_double_sided_material(client, monkeypatch):
+    """Açık yüzeyli tek katman kumaş (TRELLIS.2) çift taraflı gelir; viewer kopyasının yeni
+    malzemesi bunu korumalı (yoksa arkası dönük yüzler görüntüleyicide kaybolur)."""
+    import json
+    import struct
+    import numpy as np
+    from PIL import Image
+    from gateway.routes import projects as pr
+    monkeypatch.setattr(pr, "_VIEW_MAX_FACES", 100)
+    sph = trimesh.creation.icosphere(subdivisions=3)
+    uv = np.random.default_rng(0).random((len(sph.vertices), 2))
+    sph.visual = trimesh.visual.TextureVisuals(uv=uv, material=trimesh.visual.material.PBRMaterial(
+        baseColorTexture=Image.new("RGB", (8, 8), (200, 30, 30)), doubleSided=True))
+    sph.export(str(client.mesh_dir / "mesh.glb"))
+    view = pr._ensure_view_mesh(client.pid)
+    raw = view.read_bytes()
+    n = struct.unpack("<I", raw[12:16])[0]
+    mats = json.loads(raw[20:20 + n])["materials"]
+    assert mats and all(m.get("doubleSided") for m in mats)
+
+
 def test_small_uv_mesh_served_as_is(client):
     from gateway.routes import projects as pr
     box = trimesh.creation.box([1, 1, 1])
