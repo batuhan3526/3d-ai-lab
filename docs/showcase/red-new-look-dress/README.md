@@ -74,8 +74,32 @@ The same image was sent to three engines:
 
 SAM 3D Objects (third candidate, added later) gives a good silhouette, but the texture
 shifts toward a dark magenta (median texel RGB 92/5/43 vs. 155/0/15 in the concept)
-and the mesh is sparse (16k vertices). The automatic fit also placed it too high: the
-mannequin's head comes through the neckline. Hunyuan3D-2.1 stayed the winner.
+and the mesh is sparse (16k vertices). Hunyuan3D-2.1 stayed the winner.
+
+### 4b. Same dress, every local engine, on the mannequin
+
+![The same concept image through every local engine, dressed automatically](14-engines-dressed.png)
+
+The same concept image was sent to every installed image→3D engine with *dress on the
+mannequin* switched on; nothing was adjusted by hand. One GPU, engines run one after
+another.
+
+| Engine | Time (GPU 1) | Result |
+|---|---|---|
+| Hunyuan3D-2.1 textured | ~460 s (shape + paint) | The winner above: clean shape, PBR texture |
+| Hunyuan3D-2.1 shape | 87 s | Same clean shape, no texture (white) |
+| TRELLIS | 189 s | Good fit; the skirt has dark streaks and holes |
+| SAM 3D Objects | 272 s | Good fit; colour drifts to magenta |
+| Hi3DGen | 143 s | Shorter dress, crumpled straps, no texture |
+| Stable Fast 3D | 190 s | Lumpy surface, skirt too wide at the back |
+| TripoSR | 20 s | Fastest; low detail, blobby, closed neckline |
+
+Every engine's dress now sits on the shoulders with the arms out of the armholes. Two
+general fixes came out of this test (they help every garment, not just this dress):
+TripoSR models were exported lying on their side (its axis was not converted to glTF's
+Y-up), and with a very full skirt the arm search mistook the skirt around a hanging arm
+for a sleeve and left the arm inside the dress (Stable Fast 3D). A sleeve now has to
+start at the shoulder.
 
 ### 5. Dressed on the mannequin
 
@@ -178,7 +202,11 @@ Edge stretch p95 went from **1.20 → 1.03**; seam gap p95 is 0.55 mm.
   of the body. The new fit searches scale and position so the body fits inside the
   fabric, ignoring the depth that single-image engines flatten. The arm pose avoids
   cutting through the fabric (out of the armholes, outside a full skirt; inside the
-  sleeves for sleeved garments). It was checked on 70
+  sleeves for sleeved garments). Generated bodices are usually wider than the body, so
+  with the arm hanging naturally its root still cut through the side of the bodice and
+  the arm seemed to come out of the fabric rather than the armhole; below the armpit
+  that fabric is now moved between the arm and the body, as it sits on a real person.
+  Tight sleeves on sleeved garments (coats, jackets) can still touch the arm. It was checked on 70
   generated garments (t-shirts, shirts, hoodies, jackets, coats, five dresses, skirts,
   trousers, shorts); models that are not garments (a full human figure, a pile lying
   flat, a vase) are now rejected with a clear message.
@@ -269,8 +297,30 @@ Aynı görsel üç motora gönderildi:
 
 SAM 3D Objects (sonradan eklenen üçüncü aday) silueti iyi çıkarıyor. Ama doku koyu
 macentaya kayıyor (doku medyanı RGB 92/5/43, konseptte 155/0/15) ve mesh seyrek
-(16 bin vertex). Otomatik oturtma da elbiseyi fazla yukarı koydu; mankenin başı yakadan
-çıkıyor. Kazanan yine Hunyuan3D-2.1.
+(16 bin vertex). Kazanan yine Hunyuan3D-2.1.
+
+### 4b. Aynı elbise, tüm yerel motorlar, mankende
+
+![Aynı konsept görsel tüm yerel motorlardan, otomatik giydirilmiş](14-engines-dressed.png)
+
+Aynı konsept görsel, *mankene giydir* açıkken kurulu tüm görselden 3D motorlarına
+gönderildi; elle hiçbir ayar yapılmadı. Tek GPU, motorlar sırayla.
+
+| Motor | Süre (GPU 1) | Sonuç |
+|---|---|---|
+| Hunyuan3D-2.1 dokulu | ~460 sn (şekil + boya) | Yukarıdaki kazanan: temiz şekil, PBR doku |
+| Hunyuan3D-2.1 şekil | 87 sn | Aynı temiz şekil, dokusuz (beyaz) |
+| TRELLIS | 189 sn | İyi oturuyor; etekte koyu çizgiler ve delikler |
+| SAM 3D Objects | 272 sn | İyi oturuyor; renk macentaya kayıyor |
+| Hi3DGen | 143 sn | Elbise kısa, askılar buruşuk, dokusuz |
+| Stable Fast 3D | 190 sn | Yüzey topak topak, etek arkada fazla geniş |
+| TripoSR | 20 sn | En hızlı; az detay, şişkin, yaka kapalı |
+
+Artık her motorun elbisesi omuzlara oturuyor, kollar kol oyuğundan çıkıyor. Bu denemeden
+iki genel düzeltme çıktı (yalnız bu elbiseye değil, tüm kıyafetlere yarıyor): TripoSR
+modelleri yan yatık dışa aktarılıyordu (ekseni glTF'in Y-yukarı eksenine çevrilmemişti);
+çok bol etekte kol araması, aşağı sarkan kolu saran eteği kolluk sanıp kolu elbisenin
+içinde bırakıyordu (Stable Fast 3D). Artık kolluk omuzdan başlamak zorunda.
 
 ### 5. Mankende
 
@@ -372,7 +422,11 @@ Kenar uzaması p95 **1,20 → 1,03**; dikiş boşluğu p95 0,55 mm.
   duruyordu. Yeni kod ölçek ve konumu, gövde kumaşın içine sığacak şekilde arıyor; tek
   görselden üretilen motorların basık bıraktığı derinliğe güvenmiyor. Kol pozu kumaşı
   kesmeyecek şekilde seçiliyor (kolsuzda kol oyuğundan çıkıp bol eteğin dışından iner,
-  kolluda kolluğun içinde kalır). 70 üretilmiş kıyafette
+  kolluda kolluğun içinde kalır). Üretilen korsajlar genelde gövdeden geniş olduğundan
+  doğal duruşta kolun kökü korsajın yanını kesiyor, kol oyuktan değil kumaşın içinden
+  çıkıyor gibi görünüyordu; koltuk altının altındaki o kumaş artık gerçek bedende olduğu
+  gibi kol ile gövde arasına alınıyor. Kolluklu giysilerde (palto, ceket) dar kolluk
+  hâlâ kola değebiliyor. 70 üretilmiş kıyafette
   denendi (tişört, gömlek, kapüşonlu, ceket, palto, beş elbise, etek, pantolon, şort);
   kıyafet olmayan modeller (tam insan figürü, yatık yığın, vazo) artık net bir mesajla
   reddediliyor.
