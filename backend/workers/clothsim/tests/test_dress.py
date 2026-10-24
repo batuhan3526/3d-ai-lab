@@ -274,3 +274,34 @@ def test_arm_root_clears_wide_bodice():
 ])
 def test_sleeve_run_starts_at_shoulder(full, last):
     assert D.sleeve_run(np.array(full, float)) == last
+
+
+def test_floating_fragment_ignored_by_shape_guard():
+    """Kıyafetin yanında havada kalan küçük kopuk parça (bazı motorların kırıntısı) şekil
+    kontrolünü yanıltmamalı; bitişik parça kırıntı sayılmamalı."""
+    v, f, lm = _body()
+    legs = v[:, 1] < lm["levels"]["waist"]
+    lf = f[legs[f].all(axis=1)]
+    used = np.unique(lf)
+    remap = -np.ones(len(v), int)
+    remap[used] = np.arange(len(used))
+    gv, gf = v[used], remap[lf]
+    H = float(np.ptp(gv[:, 1]))
+    top = float(gv[:, 1].max())
+    chips = []
+    for sx in (1, -1):                                   # üst bölgede iki yanda uzak kırıntı
+        b = trimesh.creation.box(extents=[0.15 * H, 0.01 * H, 0.02 * H])
+        b.apply_translation([sx * 0.9 * H, top - 0.1 * H, 0.0])
+        chips.append(b)
+    touching = trimesh.creation.box(extents=[0.02 * H] * 3)          # gövdeye bitişik küçük parça
+    touching.apply_translation([0.0, top, float(gv[:, 2].mean())])
+    allv, allf = gv, gf
+    for m in chips + [touching]:
+        allf = np.vstack([allf, np.asarray(m.faces) + len(allv)])
+        allv = np.vstack([allv, np.asarray(m.vertices)])
+    frag = D.fragment_faces(allv, allf)
+    assert frag[len(gf):len(gf) + 24].all()               # iki uzak kırıntı (kutu = 12 yüz)
+    assert not frag[:len(gf)].any() and not frag[-12:].any()
+    with pytest.raises(ValueError):
+        D.check_garment_shape(allv, "pants")              # kırıntılarla: yanlış "figür"
+    D.check_garment_shape(allv[np.unique(allf[~frag])], "pants")

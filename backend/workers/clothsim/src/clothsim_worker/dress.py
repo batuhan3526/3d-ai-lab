@@ -124,6 +124,8 @@ def default_arm_dir(side: int) -> np.ndarray:
 FACING_RATIO = 1.3      # derinlik / genişlik bunun üstünde → önü yana bakıyor
 SLAB_FLAT = 0.03        # bileşen yüksekliği / kıyafet boyu bunun altında ve …
 SLAB_WIDE = 0.5         # … genişliği kıyafet genişliğinin bu katından fazlaysa: zemin plakası
+FRAGMENT_FRAC = 0.05    # bundan az yüzlü ve ana gövdeden FRAGMENT_GAP'ten uzak kopuk bileşen: kırıntı
+FRAGMENT_GAP = 0.10     # ana gövde kutusuna uzaklık (× gövdenin en büyük boyutu)
 SLAB_AREA = 0.12        # tek bir ince banttaki yatay yüz alanı / toplam: kaynaşmış plaka
 
 
@@ -182,6 +184,36 @@ def analysis_faces(v: np.ndarray, f: np.ndarray) -> np.ndarray:
             bad[c] = True
     keep = ~bad[lab[f[:, 0]]] & ~_slab_band(v, f)
     return keep if keep.any() else np.ones(len(f), bool)
+
+
+def fragment_faces(v: np.ndarray, f: np.ndarray) -> np.ndarray:
+    """Havada kalan küçük kopuk parçaların yüzleri (bazı motorlar kıyafetin yanında kırıntı
+    bırakır; şekil kontrolünde tepe/omuz oranını bozar). Kırıntı = yüzlerin FRAGMENT_FRAC'ından
+    azı ve ana bileşenden belirgin boşlukla uzak. Bitişik parçalar (düğme; parça parça üreten
+    motorlarda öbür bacak/kol) kıyafetin parçasıdır."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from clothsim_worker.fit_garment import _weld
+    W, inv = _weld(np.asarray(v, float), tol=1e-5)
+    f = inv[np.asarray(f, int)]
+    n = len(W)
+    e = np.concatenate([f[:, [0, 1]], f[:, [1, 2]]])
+    ncomp, lab = connected_components(coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(n, n)),
+                                      directed=False)
+    out = np.zeros(len(f), bool)
+    if ncomp == 1:
+        return out
+    flab = lab[f[:, 0]]
+    fcount = np.bincount(flab, minlength=ncomp)
+    main = int(np.argmax(fcount))
+    mp = W[lab == main]
+    pad = FRAGMENT_GAP * float(np.ptp(mp, axis=0).max())
+    mlo, mhi = mp.min(axis=0) - pad, mp.max(axis=0) + pad
+    for c in np.nonzero(fcount < FRAGMENT_FRAC * len(f))[0]:
+        p = W[lab == c]
+        if c != main and (np.any(p.max(axis=0) < mlo) or np.any(p.min(axis=0) > mhi)):
+            out |= flab == c
+    return out
 
 
 def _slab_band(v: np.ndarray, f: np.ndarray) -> np.ndarray:
@@ -992,13 +1024,17 @@ LEG_ROWS = 0.6          # üst giyimde alt %35'te ortası boş (iki bacak) kesit
 
 
 def _top_width_ratio(v: np.ndarray) -> float:
-    """Tepedeki %6'lık dilimin genişliği / üst yarıdaki en geniş dilim."""
+    """Tepedeki %6'lık dilimin genişliği / üst yarıdaki en geniş dilim. Genişlik yüzdelik
+    aralığıyla ölçülür: bazı motorların havada bıraktığı küçük kopuk parçalar sayılmaz."""
     H = float(np.ptp(v[:, 1]))
     y1 = float(v[:, 1].max())
 
     def width(lo: float, hi: float) -> float:
         sl = v[(v[:, 1] >= y1 - hi * H) & (v[:, 1] <= y1 - lo * H)]
-        return float(np.ptp(sl[:, 0])) if len(sl) > 5 else 0.0
+        if len(sl) <= 5:
+            return 0.0
+        x0, x1 = np.percentile(sl[:, 0], [2, 98])
+        return float(x1 - x0)
 
     upper = max(width(a, a + 0.04) for a in np.arange(0.06, 0.5, 0.04))
     return width(0.0, 0.06) / max(upper, 1e-9)
@@ -1081,7 +1117,8 @@ def dress_glb(garment_path: str, mannequin_path: str, garment_type: str, out_gar
     used = np.zeros(len(allw), bool)
     used[allf[keep_f].ravel()] = True
     if not transform:
-        check_garment_shape(allw[used], garment_type)
+        shape_f = keep_f & ~fragment_faces(allw, allf)
+        check_garment_shape(allw[np.unique(allf[shape_f])] if shape_f.any() else allw[used], garment_type)
     prof = garment_profile(allw[used], None)
     cut = pole_cut(prof)
     if cut is not None:                       # manken ayağı/direk: analizden kırp
