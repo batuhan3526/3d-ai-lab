@@ -181,7 +181,9 @@ def test_shape_guard_rejects_flat_and_legged():
         D.check_garment_shape(v[:, [0, 2, 1]], "shirt")       # yatırılmış
     with pytest.raises(ValueError, match="bacak"):
         D.check_garment_shape(v, "shirt")                     # tam figür
-    D.check_garment_shape(v, "pants")                        # alt giyimde bacak olağan
+    with pytest.raises(ValueError, match="figür"):
+        D.check_garment_shape(v, "pants")                    # baş + omuz: tam figür
+    D.check_garment_shape(v[v[:, 1] < lm["levels"]["waist"]], "pants")   # belden aşağı: bacak olağan
     gv, _ = _torso_garment(v, f, lm, 1.0, np.zeros(3))
     D.check_garment_shape(gv, "shirt")
 

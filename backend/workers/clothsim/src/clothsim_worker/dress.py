@@ -706,6 +706,7 @@ REG_BINS = 24                      # kesit başına ışın (azimut)
 REG_K_IN = np.linspace(0.15, 1.0, 11)  # gövde yarıçapı oranında iç örnekler (delme testi)
 REG_PEN_K = 0.86                   # bu oranın içinde kumaş = delme (≈1–2 cm)
 REG_PEN_TOLS = (0.02, 0.06, 0.12, 0.2)   # izin verilen delme oranı (en iyiye ek), kademeli
+REG_RISE = 0.06                    # alt giyim: belin üstüne çıkabileceği pay (× manken boyu)
 REG_LONG = 0.80                    # kıyafet boyu / manken boyu bunun üstündeyse tolerans gevşer
 REG_EASE = 0.97                    # bulunan ölçeğin bu katı → hafif bolluk payı
 # Çapa (üstte omuz, altta bel) kıyafetin tepesinden en fazla bu kadar (× manken boyu)
@@ -834,7 +835,11 @@ def register_body(occ: dict, prof: dict, lm: dict, rings: dict, garment_type: st
     if garment_type in BOTTOMS:
         anchor = lv["waist"] - 0.03 * H
         snug_band = (lv["hip"] - 0.01 * H, lv["waist"] + 0.01 * H)
-        span = (0.12, 0.85)                       # kıyafet boyu / manken boyu
+        # kıyafet boyu / manken boyu: alt giyim belden yere kadardır (+ yüksek bel payı).
+        # Üretilen pantolonların kalçası çoğu zaman bel kadar dar; kalçayı delmeden
+        # sığdırmak için manken küçülüp pantolon boyuna kadar çıkıyordu. Dar kalçayı
+        # fit_vertices dışa açar.
+        span = (0.12, (lv["waist"] - lm["y0"]) / H + REG_RISE)
         a_top, drop = gtop, REG_ANCHOR_DROP
     else:
         anchor = lm["shoulder_y"] - 0.015 * H
@@ -982,18 +987,39 @@ def mannequin_height_m(mannequin_path: str, lm: dict) -> float:
 
 
 FLAT_RATIO = 0.45       # yükseklik / en büyük yatay boyut bunun altında: yatık/düz model
+FIGURE_TOP = 0.42       # alt giyim: tepe genişliği / üst yarının en genişi bunun altında → insan figürü
 LEG_ROWS = 0.6          # üst giyimde alt %35'te ortası boş (iki bacak) kesit oranı üst sınırı
 
 
+def _top_width_ratio(v: np.ndarray) -> float:
+    """Tepedeki %6'lık dilimin genişliği / üst yarıdaki en geniş dilim."""
+    H = float(np.ptp(v[:, 1]))
+    y1 = float(v[:, 1].max())
+
+    def width(lo: float, hi: float) -> float:
+        sl = v[(v[:, 1] >= y1 - hi * H) & (v[:, 1] <= y1 - lo * H)]
+        return float(np.ptp(sl[:, 0])) if len(sl) > 5 else 0.0
+
+    upper = max(width(a, a + 0.04) for a in np.arange(0.06, 0.5, 0.04))
+    return width(0.0, 0.06) / max(upper, 1e-9)
+
+
 def check_garment_shape(v: np.ndarray, garment_type: str) -> None:
-    """Giydirilemeyecek şekilleri baştan reddet: yatırılmış/yığılmış model ve (üst
-    giyimde) bacakları olan model (tam insan figürü / tulum). Kayıt her şekle bir ölçek
+    """Giydirilemeyecek şekilleri baştan reddet: yatırılmış/yığılmış model, (üst giyimde)
+    bacakları olan model (tam insan figürü / tulum) ve (alt giyimde) başı/omuzları olan
+    model (metinden 3D motorları pantolon yerine pantolonlu insan üretebiliyor). Kayıt her şekle bir ölçek
     bulur; bu yüzden boy oranı tek başına yetmez."""
     ext = np.ptp(v, axis=0)
     if ext[1] < FLAT_RATIO * max(ext[0], ext[2]):
         raise ValueError("Model yatık ya da düz görünüyor (kıyafet dik durmalı). "
                          "Önden, dik duran bir kıyafet görseliyle yeniden üretin.")
     if garment_type in BOTTOMS:
+        # Alt giyimde bacak beklenir; tam insan figürünü tepesi ele verir: figürün tepesi
+        # baştır, üst yarıdaki en geniş yerden (omuz/kollar) çok dar. Pantolon/etek tepesi
+        # bel bandıdır, üst yarının genişliğine yakın.
+        if _top_width_ratio(v) < FIGURE_TOP:
+            raise ValueError("Model bir insan figürüne benziyor (baş ve omuzlar var). Yalnız "
+                             "kıyafeti gösteren bir görsel/prompt ile yeniden üretin.")
         return
     H = float(ext[1])
     y0 = float(v[:, 1].min())
