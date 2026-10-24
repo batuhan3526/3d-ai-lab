@@ -126,7 +126,9 @@ Everything below is implemented in this repo. Some engines are **gated** or
 
 - **Text → 3D** — describe an object, get a textured mesh (**TRELLIS**).
 - **Single photo → 3D** — one image in, textured mesh out. Engines with different
-  speed/quality/VRAM trade-offs: **TRELLIS**, **TripoSR** (fastest, ~4 s),
+  speed/quality/VRAM trade-offs: **TRELLIS.2** _(gated encoder)_ (open surfaces —
+  garments keep their arm and neck openings), **Pixal3D** _(gated encoder)_ (most
+  faithful to the photo), **TRELLIS**, **TripoSR** (fastest, ~4 s),
   **SF3D** _(gated)_, **Hi3DGen** (high geometry detail), **PartCrafter**
   (part-aware split), **SAM3D** _(gated)_.
 - **Multi-photo → 3D** — feed several angles (front / back / side) of the same
@@ -252,6 +254,8 @@ during model load, not a crash at startup.
 |---|---|---|---|---|
 | `trellis-text` | text → 3D | ~10 GB | no | MIT · OK |
 | `trellis-image` | image / multi-view → 3D | ~12 GB | no | MIT · OK |
+| `trellis2-image` | single photo → 3D + PBR, open surfaces | ~18 GB | ✓ DINOv3 | MIT · OK (DINOv3: Meta licence) |
+| `pixal3d-image` | single photo → 3D + PBR, pixel-aligned | ~12 GB | ✓ DINOv3 | MIT · OK (DINOv3: Meta licence) |
 | `triposr` | single photo → 3D (fast) | ~6 GB | no | MIT · OK |
 | `hi3dgen-image` | image / multi-view → 3D | ~14 GB | no | MIT · OK |
 | `partcrafter-image` | single photo, part-aware | ~12 GB | no* | MIT code · pulls NC matte |

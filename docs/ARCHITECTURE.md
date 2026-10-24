@@ -66,6 +66,8 @@ the ones your GPU can host. A worker loads exactly one family and drains its que
 | `hunyuan-image`        | hunyuan       | image → 3D (shape)      | ~8 GB  | terms | Tencent Community · non-commercial-ish |
 | `hunyuan-textured`     | hunyuan       | image → 3D + PBR        | ~22 GB | terms | Tencent Community · non-commercial-ish |
 | `hunyuan-mv`           | hunyuan       | multi-view → 3D         | ~10 GB | no    | Tencent Community · non-commercial-ish |
+| `trellis2-image`       | trellis2      | photo → 3D + PBR, open surfaces | ~18 GB | ✓ | MIT · DINOv3 encoder gated (Meta) |
+| `pixal3d-image`        | pixal3d       | photo → 3D + PBR, pixel-aligned | ~12 GB | ✓ | MIT · DINOv3 encoder gated (Meta) |
 | `triposr`              | triposr       | single photo → 3D       | ~6 GB  | no    | MIT · commercial OK  |
 | `sf3d-image`           | sf3d          | single photo → 3D + PBR | ~7 GB  | ✓     | Stability Community · <$1M + register |
 | `hi3dgen-image`        | hi3dgen       | image / multi-view → 3D | ~14 GB | no    | MIT · commercial OK  |

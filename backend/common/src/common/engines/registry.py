@@ -207,6 +207,39 @@ _SAM3D_PARAMS = [
      "desc": "Rastgelelik tohumu. Aynı seed = tekrarlanabilir sonuç."},
 ]
 _SAM3D_PRESETS = {"fast": {"seed": 42}, "balanced": {"seed": 42}, "quality": {"seed": 42}}
+_TRELLIS2_PARAMS = [
+    {"key": "pipeline_type", "label": "Çözünürlük", "type": "select", "default": "1024_cascade",
+     "options": ["512", "1024_cascade", "1536_cascade"],
+     "desc": "Voxel çözünürlüğü. 1536 daha detaylı ama yavaş ve çok VRAM ister."},
+    {"key": "texture_size", "label": "Doku boyutu", "type": "select", "default": 2048, "options": [1024, 2048, 4096],
+     "desc": "PBR doku çözünürlüğü px."},
+    {"key": "decimation_target", "label": "Hedef üçgen", "type": "int", "default": 300000, "min": 20000, "max": 2000000,
+     "desc": "Dışa aktarılan mesh'in yaklaşık üçgen sayısı."},
+    {"key": "remesh", "label": "Yeniden-mesh", "type": "bool", "default": False,
+     "desc": "Açık: düzgün topoloji, ama kol/boyun ağzı gibi açık kenarları kapatabilir."},
+    {"key": "seed", "label": "Seed (boş=42)", "type": "int", "default": None, "min": 0, "max": 2147483647,
+     "desc": "Aynı seed + aynı görsel = aynı sonuç."},
+]
+_TRELLIS2_PRESETS = {
+    "fast": {"pipeline_type": "512", "texture_size": 1024, "decimation_target": 150000},
+    "balanced": {"pipeline_type": "1024_cascade", "texture_size": 2048, "decimation_target": 300000},
+    "quality": {"pipeline_type": "1536_cascade", "texture_size": 4096, "decimation_target": 600000},
+}
+_PIXAL3D_PARAMS = [
+    {"key": "resolution", "label": "Çözünürlük", "type": "select", "default": 1024, "options": [1024, 1536],
+     "desc": "Voxel çözünürlüğü. 1536 daha detaylı, daha yavaş ve çok VRAM ister."},
+    {"key": "low_vram", "label": "Düşük VRAM", "type": "bool", "default": True,
+     "desc": "Modelleri aşama aşama GPU'ya alır (~12 GB). Kapalı: daha hızlı, ~18 GB+."},
+    {"key": "fov", "label": "Kamera açısı (rad, -1=otomatik)", "type": "float", "default": -1.0, "min": -1.0, "max": 1.5, "step": 0.05,
+     "desc": "Görüntünün görüş açısı. -1: MoGe-2 tahmin eder; bozulma görürsen 0.2 dene."},
+    {"key": "seed", "label": "Seed (boş=42)", "type": "int", "default": None, "min": 0, "max": 2147483647,
+     "desc": "Aynı seed + aynı görsel = aynı sonuç."},
+]
+_PIXAL3D_PRESETS = {
+    "fast": {"resolution": 1024, "low_vram": True},
+    "balanced": {"resolution": 1024, "low_vram": True},
+    "quality": {"resolution": 1536, "low_vram": True},
+}
 _TRIPOSR_PRESETS = {
     "fast": {"mc_resolution": 128, "foreground_ratio": 0.85},
     "balanced": {"mc_resolution": 256, "foreground_ratio": 0.85},
@@ -366,6 +399,32 @@ _REGISTRY: dict[str, EngineSpec] = {
         adapter="triposr_worker.engine:TripoSRImageEngine",
         params=_TRIPOSR_PARAMS,
         presets=_TRIPOSR_PRESETS,
+    ),
+    "trellis2-image": EngineSpec(
+        id="trellis2-image",
+        label="TRELLIS.2 Foto→3D (açık yüzey, PBR)",
+        kind="image",
+        quality_presets=["fast", "balanced", "quality"],
+        vram_estimate_mb=24000,
+        license="MIT (DINOv3 kodlayıcısı: Meta lisansı, HF erişimi gerekir)",
+        description="Tek fotoğraftan PBR dokulu mesh; açık yüzeyler (kıyafetin kol/boyun ağzı) korunur.",
+        capabilities=["image-to-3d"],
+        adapter="trellis2_worker.engine:Trellis2ImageEngine",
+        params=_TRELLIS2_PARAMS,
+        presets=_TRELLIS2_PRESETS,
+    ),
+    "pixal3d-image": EngineSpec(
+        id="pixal3d-image",
+        label="Pixal3D Foto→3D (piksel hizalı, PBR)",
+        kind="image",
+        quality_presets=["fast", "balanced", "quality"],
+        vram_estimate_mb=12000,
+        license="MIT (DINOv3 kodlayıcısı: Meta lisansı, HF erişimi gerekir)",
+        description="Tek fotoğraftan görsele en sadık şekil + PBR doku (TRELLIS.2 omurgası).",
+        capabilities=["image-to-3d"],
+        adapter="pixal3d_worker.engine:Pixal3DImageEngine",
+        params=_PIXAL3D_PARAMS,
+        presets=_PIXAL3D_PRESETS,
     ),
     "sf3d-image": EngineSpec(
         id="sf3d-image",

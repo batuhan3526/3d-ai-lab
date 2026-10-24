@@ -13,7 +13,7 @@ governs redistribution of the checkpoints.
 
 ## Summary by commercial-use status
 
-- **Commercial OK (MIT):** TRELLIS, TRELLIS.2-4B, TripoSR, Hi3DGen, PartCrafter
+- **Commercial OK (MIT):** TRELLIS, TRELLIS.2-4B, Pixal3D, TripoSR, Hi3DGen, PartCrafter
   *(code)*, VideoMDM *(code)*.
 - **Commercial with conditions / bespoke source-available:** Hunyuan3D-2.1
   (Tencent Community, region + 1M-MAU limits), SF3D (Stability Community, <$1M/yr +
@@ -50,6 +50,7 @@ governs redistribution of the checkpoints.
 | **DINOv3** (facebook/dinov3-vitl16-pretrain-lvd1689m) | DINOv3 License (Meta, gated) — exact terms not in local docs (**audit-gap**) | unknown from local sources — review Meta's DINOv3 License directly | controlled by Meta; per-user approval; do NOT vendor | ✓ | Mark as gated Meta dependency (used by meshflow-guided + TRELLIS.2 textured). User requests access. |
 | **SMPL-X** (MPI-IS) | SMPL-X / SMPL Model License (Max-Planck) | **prohibited** under research license; commercial needs a separate MPI license | **prohibited** — .pkl files MUST NOT be redistributed | ✓ | Do NOT vendor body_models/smpl/*.pkl (strip from history). User registers at smpl-x.is.tue.mpg.de. |
 | **TRELLIS.2-4B** (microsoft/TRELLIS.2-4B) | MIT | yes | allowed | no | Permissive — safe to reference/integrate commercially and auto-download; but the textured worker pulls GATED DINOv3. |
+| **Pixal3D** (TencentARC/Pixal3D) | MIT | yes | allowed | no (card sets `extra_gated_eu_disallowed`) | Runs on the TRELLIS.2 stack; loads GATED DINOv3 (official repo, not the upstream mirror) and MoGe-2 (MIT) for the camera. Background removal: open BiRefNet (MIT) instead of the gated, non-commercial briaai/RMBG-2.0. |
 | **Base mannequins** (in-house, generated with TRELLIS) | CC0 1.0 (public domain) | yes (no restrictions) | allowed (public domain) | no | Four A/T-pose body GLBs for the mannequin overlay, dressing and 3D sewing. Shipped in `data/templates/mannequins/` (~5 MB). Custom mannequins built from user measurements are generated at runtime and never committed. |
 | **passlib** (PyPI) | BSD-3-Clause | yes | allowed | no | Gateway auth password hashing (BATCH-B). |
 | **bcrypt** (PyPI, `<4.1` pin) | Apache-2.0 | yes | allowed | no | passlib bcrypt backend; 4.1+ passlib 1.7.4 ile uyumsuz — pin zorunlu. |

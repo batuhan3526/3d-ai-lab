@@ -1,0 +1,15 @@
+# TRELLIS.2 worker — ISOLATED conda env "trellis2" (Python 3.10, CUDA 12.4, torch 2.6).
+# Built by infra/engines/trellis2.sh (TRELLIS.2 setup.sh: o_voxel, flex_gemm, cumesh,
+# nvdiffrast). License: MIT (code + weights). The DINOv3 image encoder
+# (facebook/dinov3-vitl16-pretrain-lvd1689m) is gated — request access on Hugging Face.
+# Background removal uses the open ZhengPeng7/BiRefNet (MIT), not the gated RMBG-2.0.
+transformers==4.57.3     # 5.x moved the DINOv3 layers TRELLIS.2 reads
+xformers==0.0.29.post2
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

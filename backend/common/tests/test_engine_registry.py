@@ -45,3 +45,16 @@ def test_engine_family_helper():
     assert engine_family("trellis-text") == "trellis"
     assert engine_family("trellis-image") == "trellis"
     assert engine_family("hunyuan-image") == "hunyuan"
+
+
+@pytest.mark.parametrize("eid,family", [("trellis2-image", "trellis2"), ("pixal3d-image", "pixal3d")])
+def test_trellis2_family_engines_registered(eid, family):
+    """TRELLIS.2 omurgalı motorlar: kendi ailesi/kuyruğu (TRELLIS v1 ile karışmaz), her preset
+    şemayla geçerli."""
+    from common.engines.registry import engine_family, queue_for, resolve_engine_params
+    spec = get_spec(eid)
+    assert spec.kind == "image" and "image-to-3d" in spec.capabilities
+    assert engine_family(eid) == family
+    assert queue_for(eid, 1) == f"{family}-gpu1"
+    for preset in spec.quality_presets:
+        resolve_engine_params(eid, preset, None)

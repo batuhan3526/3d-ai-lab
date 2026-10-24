@@ -1,0 +1,5 @@
+[project]
+name = "pixal3d-worker"
+version = "0.1.0"
+description = "Pixal3D (TencentARC/Pixal3D) pixel-aligned image→3D Celery worker — TRELLIS.2 omurgası, PBR"
+requires-python = ">=3.10"

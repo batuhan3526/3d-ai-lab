@@ -66,8 +66,13 @@ the full commercial/gated/weight-distribution matrix see
 - **SMPL / SMPL-X** — Max-Planck Model License. Non-commercial research; `.pkl`
   files MUST NOT be redistributed. Register at https://smpl-x.is.tue.mpg.de.
 - **briaai/RMBG-1.4** — non-commercial (matting model pulled by PartCrafter).
-- **DINOv3** — Meta DINOv3 License, gated. Used by meshflow-guided and the
-  TRELLIS.2 textured pipeline. Review Meta's terms; do not vendor.
+- **DINOv3** — Meta DINOv3 License, gated. Used by meshflow-guided, the TRELLIS.2
+  textured pipeline, `trellis2-image` and `pixal3d-image`. Review Meta's terms; do not
+  vendor.
+- **Pixal3D** — MIT, © Tencent ARC / Tsinghua. Code + weights (TencentARC/Pixal3D),
+  downloaded at install / first run. Uses MoGe-2 (MIT) for camera estimation.
+- **BiRefNet** (ZhengPeng7/BiRefNet) — MIT. Background removal for `trellis2-image` and
+  `pixal3d-image` (replaces the gated, non-commercial briaai/RMBG-2.0 default).
 
 ## No license — excluded from redistribution
 

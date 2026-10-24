@@ -1,0 +1,5 @@
+[project]
+name = "trellis2-worker"
+version = "0.1.0"
+description = "TRELLIS.2 (microsoft/TRELLIS.2-4B) image→3D Celery worker — açık yüzeyli (kıyafet), PBR dokulu"
+requires-python = ">=3.10"

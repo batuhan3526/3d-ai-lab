@@ -1,0 +1,15 @@
+# Pixal3D worker — ISOLATED conda env "pixal3d" on the TRELLIS.2 stack (see
+# infra/engines/pixal3d.sh). License: MIT. Gated input: DINOv3 (request access on HF).
+# MoGe (camera estimation) is installed with --no-deps (its trimesh pin conflicts with
+# Pixal3D's); its helper utils3d_moge is installed explicitly.
+-r ../../../engines/Pixal3D/requirements.txt
+natten==0.21.0           # build with CUDACXX pointing at the env's nvcc
+utils3d @ https://github.com/LDYang694/Storages/releases/download/20260430/utils3d-0.0.2-py3-none-any.whl
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv
