@@ -56,7 +56,7 @@ class TripoSRImageEngine:
         import rembg
         import torch
         from PIL import Image
-        from tsr.utils import remove_background, resize_foreground
+        from tsr.utils import remove_background, resize_foreground, to_gradio_3d_orientation
         if self._rembg is None:
             self._rembg = rembg.new_session()
         fg = float(params.get("foreground_ratio", 0.85))
@@ -70,5 +70,8 @@ class TripoSRImageEngine:
             scene_codes = self._model([image], device="cuda")
         meshes = self._model.extract_mesh(scene_codes, True, resolution=mc)
         out_path.parent.mkdir(parents=True, exist_ok=True)
+        # TripoSR'ın kendi ekseni (z-yukarı) → glTF y-yukarı; upstream gradio_app da GLB'den
+        # önce bunu yapar. Yapılmazsa model yan yatık çıkar (görüntüleyici + giydirme reddi).
+        meshes[0] = to_gradio_3d_orientation(meshes[0])
         meshes[0].export(str(out_path))
         return out_path
