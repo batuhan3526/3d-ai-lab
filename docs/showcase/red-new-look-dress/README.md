@@ -86,6 +86,8 @@ another.
 
 | Engine | Time (GPU 1) | Result |
 |---|---|---|
+| **TRELLIS.2** (added later) | ~80 s (40 s shape + texture, 40 s export) | Cleanest shape; closed, believable back; arms out of the armholes. Some grey texture blotches on the bodice |
+| Pixal3D (added later) | ~4 min (low-VRAM mode) | Follows the photo's perspective: skirt swept back, a small loose fragment |
 | Hunyuan3D-2.1 textured | ~460 s (shape + paint) | The winner above: clean shape, PBR texture |
 | Hunyuan3D-2.1 shape | 87 s | Same clean shape, no texture (white) |
 | TRELLIS | 189 s | Good fit; the skirt has dark streaks and holes |
@@ -100,6 +102,13 @@ TripoSR models were exported lying on their side (its axis was not converted to 
 Y-up), and with a very full skirt the arm search mistook the skirt around a hanging arm
 for a sleeve and left the arm inside the dress (Stable Fast 3D). A sleeve now has to
 start at the shoulder.
+
+TRELLIS.2 and Pixal3D were added afterwards (both need access to Meta's gated DINOv3
+encoder on Hugging Face). TRELLIS.2 keeps garments as open surfaces, which is the right
+shape for clothing, and gave the best result here; its single-layer fabric is exported
+double-sided so the viewer shows both faces. Pixal3D estimates the camera from the photo;
+for studio product shots a narrow field of view (`fov` 0.2 in its advanced settings)
+reduced the distortion and removed the loose fragment in a test.
 
 ### 5. Dressed on the mannequin
 
@@ -308,6 +317,8 @@ gönderildi; elle hiçbir ayar yapılmadı. Tek GPU, motorlar sırayla.
 
 | Motor | Süre (GPU 1) | Sonuç |
 |---|---|---|
+| **TRELLIS.2** (sonradan eklendi) | ~80 sn (40 sn şekil + doku, 40 sn dışa aktarma) | En temiz şekil; sırt kapalı ve inandırıcı, kollar kol oyuğundan çıkıyor. Korsajda gri doku lekeleri var |
+| Pixal3D (sonradan eklendi) | ~4 dk (düşük VRAM modu) | Fotoğrafın perspektifini izliyor: etek arkaya savrulmuş, küçük kopuk bir parça var |
 | Hunyuan3D-2.1 dokulu | ~460 sn (şekil + boya) | Yukarıdaki kazanan: temiz şekil, PBR doku |
 | Hunyuan3D-2.1 şekil | 87 sn | Aynı temiz şekil, dokusuz (beyaz) |
 | TRELLIS | 189 sn | İyi oturuyor; etekte koyu çizgiler ve delikler |
@@ -321,6 +332,13 @@ iki genel düzeltme çıktı (yalnız bu elbiseye değil, tüm kıyafetlere yar�
 modelleri yan yatık dışa aktarılıyordu (ekseni glTF'in Y-yukarı eksenine çevrilmemişti);
 çok bol etekte kol araması, aşağı sarkan kolu saran eteği kolluk sanıp kolu elbisenin
 içinde bırakıyordu (Stable Fast 3D). Artık kolluk omuzdan başlamak zorunda.
+
+TRELLIS.2 ve Pixal3D sonradan eklendi (ikisi de Meta'nın Hugging Face'teki erişim izinli
+DINOv3 kodlayıcısını ister). TRELLIS.2 kıyafeti açık yüzey olarak üretiyor, bu da kıyafet
+için doğru şekil; burada en iyi sonucu verdi. Tek katman kumaşı çift taraflı dışa
+aktarılıyor ki görüntüleyici iki yüzü de göstersin. Pixal3D kamerayı fotoğraftan tahmin
+ediyor; stüdyo ürün fotoğraflarında dar görüş açısı (gelişmiş ayarlarda `fov` 0.2) bir
+denemede bozulmayı azalttı ve kopuk parçayı kaldırdı.
 
 ### 5. Mankende
 
