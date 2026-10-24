@@ -222,3 +222,53 @@ def test_sleeveless_arms_clear_flared_skirt():
     dirs, rep = D.clear_arm_dirs(occ, smps, 1.0, zero)
     after = max(D.arm_crossing(occ, smps[sd], dirs[sd], 1.0, zero) for sd in (1, -1))
     assert before > 0.03 and after < 0.5 * before, (before, after, rep)
+
+
+def test_arm_root_clears_wide_bodice():
+    """Gövdeden geniş kolsuz korsaj: doğal kol pozunda üst kol yan duvarı keser. Temizlik
+    sonrası koltuk altı altındaki duvar kol ile gövde arasına geçer (iç yana), omuz üstü
+    ve koldan uzak kumaş yerinde kalır."""
+    v, f, lm = _body()
+    gv, gf = _torso_garment(v, f, lm, 1.0, np.zeros(3), ease=1.35)
+    dirs = {sd: D.default_arm_dir(sd) for sd in (1, -1)}
+    posed = D.pose_arms(v, lm, dirs)
+    am = D.arm_vertices(v, lm)
+    arms = {sd: posed[am & (np.sign(v[:, 0]) == sd)] for sd in (1, -1)}
+    prof = D.garment_profile(gv, None)
+    occ = D.garment_occupancy(gv, gf, 0.008 * prof["H"])
+
+    def inside(P):
+        """Koltuk altı altında, üst kol silindirinin (kol boyunun %15–45'i; eksen ve
+        yarıçap o köşelerden) içine düşen kumaş köşeleri."""
+        n = 0
+        for sd in (1, -1):
+            A = arms[sd]
+            t = A @ dirs[sd]
+            up = (t > t.min() + 0.15 * np.ptp(t)) & (t < t.min() + 0.45 * np.ptp(t))
+            c = A[up].mean(axis=0)
+            ax = np.linalg.svd(A[up] - c, full_matrices=False)[2][0]
+            rad = np.median(np.linalg.norm((A[up] - c) - np.outer((A[up] - c) @ ax, ax), axis=1))
+            ta, gt = (A - c) @ ax, (P - c) @ ax
+            q = np.linalg.norm((P - c) - np.outer(gt, ax), axis=1)
+            n += int(((q < rad) & (gt > ta.min()) & (gt < ta.min() + 0.45 * np.ptp(ta))
+                      & (P[:, 1] < lm["levels"]["armpit"])).sum())
+        return n
+
+    before = inside(gv)
+    new, rep = D.clear_arm_roots(gv, arms, lm, dirs, 1.0, np.zeros(3), occ, 0.005)
+    assert before > 0, rep
+    assert inside(new) == 0, rep
+    moved = np.linalg.norm(new - gv, axis=1) > 1e-9
+    assert np.all(np.abs(new[moved, 0]) <= np.abs(gv[moved, 0]) + 1e-9)      # yalnız içe
+    assert not moved[gv[:, 1] > lm["levels"]["armpit"] + 0.02 * lm["H"]].any()  # omuz üstü yerinde
+
+
+@pytest.mark.parametrize("full,last", [
+    ([1, 1, 1, 0, 0, 0], 2),          # kısa kolluk: omuzdan başlar
+    ([0, 1, 1, 1, 0, 1, 1], 6),       # ilk kesit açık (geniş kolluk ağzı), tek boşluk tolere
+    ([1, 1, 0, 0, 1, 1], 1),          # iki boşluk: kolluk biter
+    ([0, 0, 1, 1, 1, 0], 4),          # geniş omuz başı: sarılma 3. kesitte başlar
+    ([0, 0, 0, 1, 1, 1], -1),         # yalnız dirsekten aşağı sarılma: bol etek, kolluk değil
+])
+def test_sleeve_run_starts_at_shoulder(full, last):
+    assert D.sleeve_run(np.array(full, float)) == last

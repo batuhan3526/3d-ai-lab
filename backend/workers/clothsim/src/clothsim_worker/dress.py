@@ -357,6 +357,8 @@ def _enclosure(occ: dict, P: np.ndarray, axis: np.ndarray, rmax: float, rmin: fl
     return hit.any(axis=2).mean(axis=1)
 
 
+SLEEVE_START = 2         # kolluk sarılması kolun ilk bu kadar+1 örneğinde (≤ kol boyunun ~%30u: koltuk altı hizası) başlamalı
+SLEEVE_MIN_UP = 0.34     # kol aramasında üst kolun en az bu kadarı sarılıyorsa kol kollukta
 ARM_INSET = 0.25         # kol köşeleri kol eksenine bu oranda içeri: kolluğun kola değmesi kesme sayılmaz
 ARM_CROSS_W = 2.0        # kollu kıyafet aramasında kumaşı kesen kol noktalarının cezası
 ARM_ROOT = 0.12          # omuz ekleminden bu kadar (× kol boyu) içerisi kesme sayılmaz (oyuk kenarı)
@@ -405,6 +407,25 @@ def arm_crossing(occ: dict, smp: dict, d: np.ndarray, s: float, pos: np.ndarray,
     return float((hit * w).sum() / w.sum())
 
 
+def sleeve_run(full: np.ndarray) -> int:
+    """Omuzdan (ilk örnekler) başlayan kesintisiz sarılmanın son indeksi; tek tük sarılmayan
+    kesit (kolluk kıvrımı, delik) araya girebilir. Sarılma omuzda başlamıyorsa (-1): kolu
+    dirsekten aşağı saran bol etek / geniş gövde kolluk değildir."""
+    last, miss = -1, 0
+    for i, f in enumerate(full):
+        if f:
+            last, miss = i, 0
+            continue
+        if last < 0:                       # henüz başlamadı: yalnız başlangıç penceresi
+            if i >= SLEEVE_START:
+                break
+            continue
+        miss += 1
+        if miss > 1:
+            break
+    return last
+
+
 def _arm_dir(side: int, th: float, ph: float) -> np.ndarray:
     o, f = math.radians(th), math.radians(ph)
     return np.array([side * math.sin(o), -math.cos(o) * math.cos(f), math.cos(o) * math.sin(f)])
@@ -446,14 +467,14 @@ def search_arm_dirs(occ: dict, lm: dict, s: float, pos: np.ndarray,
         P = pivots[side] + tt[:, None] * d
         enc = _enclosure(occ, P, d, 0.07 * H, rmin=0.014 * H)
         full = (enc >= 0.875).astype(float)       # ≥7/8 ışın: gerçekten kolluk içinde
+        full *= np.arange(len(full)) <= sleeve_run(full)   # kolluk omuzdan başlar (bol etek değil)
         I = ((P - lo) / c).astype(int)
         ok = np.all((I >= 0) & (I < np.array(G.shape)), axis=1)
         inwall = np.zeros(len(P), bool)
         inwall[ok] = G[I[ok, 0], I[ok, 1], I[ok, 2]]   # ekseni kumaşın içinden geçen kol cezalı
         sc = float((full * wts).sum() / wts.sum()) - 0.8 * float(inwall.mean())
         if smps is not None:
-            # kolluk = omuzdan başlayıp en son sarılan noktaya kadar (aradaki tek tük
-            # sarılmayan kesitler kolluk dışı sayılmaz)
+            # kolluk = omuzdan başlayıp en son sarılan noktaya kadar
             inside = np.nonzero(full > 0)[0]
             end = float(tt[inside[-1]] / L) + 0.05 if len(inside) else 0.0
             sc -= ARM_CROSS_W * arm_crossing(occ, smps[side], d, s, pos, end)
@@ -471,7 +492,7 @@ def search_arm_dirs(occ: dict, lm: dict, s: float, pos: np.ndarray,
             if tot > best[0]:
                 best = (tot, th, ph, float(np.mean(ups)))
     _, th, ph, up = best
-    if up < 0.34:                                 # üst kolun ~1/3'ü bile kollukta değil: kolsuz say
+    if up < SLEEVE_MIN_UP:                        # üst kolun ~1/3'ü bile kollukta değil: kolsuz say
         if smps is not None:
             return clear_arm_dirs(occ, smps, s, pos)
         dirs = {side: default_arm_dir(side) for side in (1, -1)}
@@ -485,6 +506,78 @@ def search_arm_dirs(occ: dict, lm: dict, s: float, pos: np.ndarray,
         if smps is not None:
             rep[str(side)]["crossing"] = round(arm_crossing(occ, smps[side], d, s, pos), 3)
     return dirs, rep
+
+
+ARM_CLEAR_T = (0.15, 0.45)  # üst kol (× kol boyu): eksen ve yarıçap buradan; gövde kumaşı yalnız üst kolla çakışır
+ARM_CLEAR_ROUNDS = 4        # itme turu (yayılımın kola soktuğu köşeler bir sonraki turda çıkar)
+ARM_CLEAR_SPREAD = 1.5      # itme, kol yarıçapının bu katı içinde koni düşüşüyle komşulara yayılır
+
+
+def clear_arm_roots(wv: np.ndarray, arms: dict[int, np.ndarray], lm: dict, dirs: dict[int, np.ndarray],
+                    s: float, pos: np.ndarray, occ: dict, margin: float) -> tuple[np.ndarray, dict]:
+    """Koltuk altının altında kolun İÇİNDE kalan gövde kumaşını kol ile gövde ARASINA it.
+
+    Kol pivotu sabit, üretilen korsaj gövdeden geniş: kol hangi doğal açıyla inerse insin
+    kökü korsajın yan duvarını keser (kollar oyuktan değil kumaşın içinden çıkar; kolu
+    yataya kaldırmak da doğal değil). Gerçekte o kumaş koltuk altında kola ve gövdeye
+    sıkışır → üst kol silindirinin içindeki köşeler gövdeye bakan yönde (iç yan) silindirin
+    `margin` dışına taşınır, itme komşulara yayılır (çift kabuk birlikte kayar).
+    Yalnız kolsuz giysi / alt giyimde çağrılır (kol kollukta ise kökteki kumaş kolluğun
+    kendisidir, onu fit_vertices kolun çevresinde açar); kolu SARAN kesitler (kolluk
+    sanılmadan kalmış kısa kolluk) yine atlanır. Koltuk altının üstü (omuz, askı)
+    dokunulmaz. `arms[side]`: pozlu kol köşeleri (manken yereli)."""
+    from scipy.spatial import cKDTree
+    W, inv = np.unique(np.round(wv, 9), axis=0, return_inverse=True)
+    inv = inv.ravel()
+    out = W.copy()
+    armpit_y = lm["levels"]["armpit"] * s + pos[1]
+    rep: dict[str, Any] = {}
+    for side, d in dirs.items():
+        A = arms[side] * s + pos
+        t = A @ (d / np.linalg.norm(d))
+        t0, L = float(t.min()), float(np.ptp(t))
+        up = (t > t0 + ARM_CLEAR_T[0] * L) & (t < t0 + ARM_CLEAR_T[1] * L)
+        if up.sum() < 10:
+            continue
+        # silindir: üst kol köşelerinden eksen (PCA) ve yarıçap (medyan uzaklık)
+        c = A[up].mean(axis=0)
+        ax = np.linalg.svd(A[up] - c, full_matrices=False)[2][0]
+        ax = ax if ax @ d > 0 else -ax
+        rad = float(np.median(np.linalg.norm((A[up] - c) - np.outer((A[up] - c) @ ax, ax), axis=1)))
+        R = rad + margin
+        ta = (A - c) @ ax
+        lo_t, hi_t = float(ta.min()), float(ta.min() + ARM_CLEAR_T[1] * np.ptp(ta))
+        tb = np.linspace(lo_t, hi_t, 8)
+        enc = _enclosure(occ, c + tb[:, None] * ax, ax, 2.0 * rad, rmin=R)
+        m = np.array([-side, 0.0, 0.0])
+        m -= (m @ ax) * ax
+        m /= np.linalg.norm(m)
+        rho = ARM_CLEAR_SPREAD * rad
+        open_sec = enc < 0.875                   # kolu saran kesit: kolluk
+        start = out.copy()
+        n_in, moved = 0, np.zeros(len(W), bool)
+        for _ in range(ARM_CLEAR_ROUNDS):        # yayılım dış yandaki komşuyu kola sokabilir → tekrar
+            g = out - c
+            gt = g @ ax
+            q = g - np.outer(gt, ax)
+            cand = (W[:, 1] < armpit_y) & (gt > lo_t) & (gt < hi_t) & (np.linalg.norm(q, axis=1) < R)
+            cand &= open_sec[np.clip(np.searchsorted(tb, gt), 0, len(tb) - 1)]
+            idx = np.nonzero(cand)[0]
+            if not len(idx):
+                break
+            n_in = n_in or len(idx)
+            qm = q[idx] @ m
+            lam = -qm + np.sqrt(np.maximum(qm ** 2 - (q[idx] ** 2).sum(axis=1) + R ** 2, 0.0))
+            mag = np.zeros(len(W))
+            mag[idx] = lam
+            for j, lj, nb in zip(idx, lam, cKDTree(out).query_ball_point(out[idx], rho), strict=True):
+                nb = np.asarray(nb, dtype=int)
+                np.maximum.at(mag, nb, lj * (1.0 - np.linalg.norm(out[nb] - out[j], axis=1) / rho))
+            out += mag[:, None] * m
+            moved |= mag > 1e-9
+        rep[str(side)] = {"inside": int(n_in), "moved": int(moved.sum()),
+                          "max_move": round(float(np.linalg.norm(out - start, axis=1).max(initial=0.0)), 4)}
+    return out[inv], rep
 
 
 def align_to_arms(gv: np.ndarray, prof: dict, arm_pts: np.ndarray, max_shift: float = 0.04,
@@ -1001,12 +1094,18 @@ def dress_glb(garment_path: str, mannequin_path: str, garment_type: str, out_gar
                               "arm_search": arm_rep, "settle": settle_rep,
                               "sleeves_found": sorted(int(k) for k in prof["sleeves"]),
                               "geometries": {}}
+    am_t = arm_vertices(bv0, lm)
+    arms = {sd: posed[am_t & (np.sign(bv0[:, 0]) == sd)] for sd in dirs}
+    in_sleeve = any(r.get("enclosure", 0.0) >= SLEEVE_MIN_UP for r in arm_rep.values())
+    report["arm_clear"] = {}
     fitted: list[np.ndarray] = []
     for name, geom, T in geoms:
         wv = trimesh.transform_points(np.asarray(geom.vertices, float), T) @ Ry.T
         srep: dict[str, Any] = {}
         if garment_type in TOPS and prof["sleeve_rows"]:
             wv, srep = align_to_arms(wv, prof, arm_pts)
+        if not in_sleeve:
+            wv, report["arm_clear"][name] = clear_arm_roots(wv, arms, lm, dirs, s, pos, occ, margin)
         # Boyun üstünde bedenin içinde kalan parçalar (görselden gelen manken boynu, baş
         # içi) kumaş taşması değildir → itilmez (yoksa yüzde "maske" oluşur). Gövdede derin
         # taşmalar (sığ üretilmiş kıyafet) da itilsin diye derinlik sınırı geniş.
@@ -1014,6 +1113,12 @@ def dress_glb(garment_path: str, mannequin_path: str, garment_type: str, out_gar
         frozen = wv[:, 1] > neck_w - 0.01 * lm["H"] * s
         new, rep = fit_vertices(wv, np.asarray(geom.faces), bpts, bnrm, margin=margin,
                                 deep=0.25 * lm["H"] * s * 0.6, frozen=frozen)
+        if not in_sleeve:
+            # oturtma kumaşı gövdeden dışa iterken koltuk altı kıvrımındaki (kalın / çok
+            # katmanlı) kumaşı kola geri sokabilir: son söz kolun (kıvrımda kalan gövde teması
+            # kol ile gövde arasında, görünmez)
+            new, report["arm_clear"][name]["after_fit"] = clear_arm_roots(
+                new, arms, lm, dirs, s, pos, occ, margin)
         geom.vertices = trimesh.transform_points(new, np.linalg.inv(T))
         rep["sleeves"] = srep
         report["geometries"][name] = rep
