@@ -240,6 +240,23 @@ _PIXAL3D_PRESETS = {
     "balanced": {"resolution": 1024, "low_vram": True},
     "quality": {"resolution": 1536, "low_vram": True},
 }
+_ULTRATEX_PARAMS = [
+    {"key": "resolution", "label": "Görünüm çözünürlüğü", "type": "select", "default": 1024, "options": [1024, 2048],
+     "desc": "6 görünümün her birinin çözünürlüğü. 2048 = modelin eğitildiği 2K, çok VRAM ister."},
+    {"key": "steps", "label": "Adım", "type": "int", "default": 25, "min": 4, "max": 50,
+     "desc": "Difüzyon adımı. Yüksek = daha temiz doku, daha yavaş."},
+    {"key": "guidance", "label": "Rehberlik", "type": "float", "default": 4.0, "min": 1.0, "max": 10.0, "step": 0.5,
+     "desc": "Referans görsele bağlılık."},
+    {"key": "texture_size", "label": "Doku boyutu", "type": "select", "default": 2048, "options": [1024, 2048, 4096],
+     "desc": "Modele işlenen UV dokusunun çözünürlüğü."},
+    {"key": "seed", "label": "Seed (boş=42)", "type": "int", "default": None, "min": 0, "max": 2147483647,
+     "desc": "Aynı seed + aynı girdi = aynı sonuç."},
+]
+_ULTRATEX_PRESETS = {
+    "fast": {"resolution": 1024, "steps": 12, "texture_size": 1024},
+    "balanced": {"resolution": 1024, "steps": 25, "texture_size": 2048},
+    "quality": {"resolution": 2048, "steps": 25, "texture_size": 4096},
+}
 _TRIPOSR_PRESETS = {
     "fast": {"mc_resolution": 128, "foreground_ratio": 0.85},
     "balanced": {"mc_resolution": 256, "foreground_ratio": 0.85},
@@ -425,6 +442,20 @@ _REGISTRY: dict[str, EngineSpec] = {
         adapter="pixal3d_worker.engine:Pixal3DImageEngine",
         params=_PIXAL3D_PARAMS,
         presets=_PIXAL3D_PRESETS,
+    ),
+    "ultratex-retexture": EngineSpec(
+        id="ultratex-retexture",
+        label="UltraTex Görselden Doku (2K, çok görünüm)",
+        kind="edit",
+        quality_presets=["fast", "balanced", "quality"],
+        vram_estimate_mb=24000,
+        license="MIT kod · FLUX.2-klein (BFL lisansı, HF erişimi) · Qwen3-8B Apache-2.0",
+        description="Mevcut 3D modeli bir referans görsele göre yeniden dokular; şekil aynı kalır.",
+        capabilities=["image-retexture"],
+        adapter="ultratex_worker.engine:UltraTexEngine",
+        params=_ULTRATEX_PARAMS,
+        presets=_ULTRATEX_PRESETS,
+        commercial_use=False,
     ),
     "sf3d-image": EngineSpec(
         id="sf3d-image",

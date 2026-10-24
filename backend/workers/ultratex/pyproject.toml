@@ -1,0 +1,5 @@
+[project]
+name = "ultratex-worker"
+version = "0.1.0"
+description = "UltraTex image-guided retexturing Celery worker — 6-view G-buffer + FLUX.2-klein + UV bake"
+requires-python = ">=3.12"

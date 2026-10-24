@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import random
 import re
+import shutil
 import uuid
 from pathlib import Path
 
@@ -321,6 +322,74 @@ def retexture(payload: RetextureIn, db: Session = Depends(get_db)) -> GenerateOu
         "prompt": payload.prompt,
         "prompt_enhance": payload.prompt_enhance,
     }, queue=f"intex-gpu{payload.gpu}")
+    return GenerateOut(job_id=job_id, project_id=proj.id)
+
+
+@router.post("/retexture-image", response_model=GenerateOut, status_code=status.HTTP_201_CREATED)
+def retexture_image(
+    source_project_id: str = Form(...),
+    file: UploadFile | None = File(None),
+    engine_id: str = Form("ultratex-retexture"),
+    gpu: int | None = Form(None),
+    quality: str = Form("balanced"),
+    advanced: str | None = Form(None),
+    db: Session = Depends(get_db),
+) -> GenerateOut:
+    """Görselden doku (UltraTex): kaynak projenin mesh'i referans görsele göre yeniden
+    dokulanır, şekil değişmez. Görsel yüklenmezse kaynak projenin konsept görseli kullanılır.
+    Yeni proje kaynağın manken/ölçü ayarlarını devralır (geometri aynı → giydirme geçerli)."""
+    src = db.get(Project, source_project_id)
+    if src is None:
+        raise HTTPException(404, "Kaynak tasarım bulunamadı")
+    spec = _require_available(engine_id)
+    if "image-retexture" not in spec.capabilities:
+        raise HTTPException(422, f"{spec.label} görselden doku üretemez")
+    gpu = _resolve_gpu(gpu)
+    try:
+        adv = json.loads(advanced) if advanced else None
+        resolve_engine_params(engine_id, quality, adv)
+    except (ValueError, TypeError) as e:
+        raise HTTPException(422, str(e)) from None
+    settings = get_settings()
+    img_name = None
+    if file is not None:
+        uploads = Path(settings.uploads_dir)
+        uploads.mkdir(parents=True, exist_ok=True)
+        img_name = f"{uuid.uuid4().hex}{Path(file.filename or 'ref.png').suffix or '.png'}"
+        (uploads / img_name).write_bytes(file.file.read())
+        try:
+            enforce(uploads / img_name, context="upload")
+        except SafetyBlocked as e:
+            (uploads / img_name).unlink(missing_ok=True)
+            raise HTTPException(422, "İçerik güvenlik filtresine takıldı") from e
+    elif not (Path(settings.projects_dir) / _USER / src.id / "ref_image.png").exists():
+        raise HTTPException(422, "Referans görsel yükleyin (kaynak projede konsept görsel yok).")
+    proj = Project(
+        user_id=_USER,
+        name=f"doku: {src.name}"[:60],
+        garment_type=src.garment_type,
+        template_id="retextured",
+        customizations=dict(src.customizations or {}),
+        engine_id=engine_id,
+    )
+    db.add(proj)
+    db.commit()
+    db.refresh(proj)
+    # pozlu manken dosyası kaynak projenin klasöründe → yeni projeye de kopyala
+    posed = ((proj.customizations or {}).get("mannequin") or {}).get("posed")
+    if posed:
+        base = Path(settings.projects_dir) / _USER
+        s_var, d_var = base / src.id / "variations" / posed, base / proj.id / "variations" / posed
+        if s_var.exists():
+            d_var.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(s_var, d_var)
+    job_id = uuid.uuid4().hex
+    _job_store().create(job_id, {"kind": "retexture", "project_id": proj.id})
+    from common.celery_app import celery_app
+    celery_app.send_task("texture_image.generate", kwargs={
+        "job_id": job_id, "project_id": proj.id, "source_project_id": src.id,
+        "image_name": img_name, "engine_id": engine_id, "quality": quality, "advanced": adv,
+    }, queue=queue_for(engine_id, gpu))
     return GenerateOut(job_id=job_id, project_id=proj.id)
 
 

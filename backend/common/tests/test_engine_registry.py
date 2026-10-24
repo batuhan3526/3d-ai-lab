@@ -58,3 +58,13 @@ def test_trellis2_family_engines_registered(eid, family):
     assert queue_for(eid, 1) == f"{family}-gpu1"
     for preset in spec.quality_presets:
         resolve_engine_params(eid, preset, None)
+
+
+def test_ultratex_is_an_image_retexture_engine():
+    from common.engines.registry import queue_for, resolve_engine_params
+    spec = get_spec("ultratex-retexture")
+    assert spec.kind == "edit" and spec.capabilities == ["image-retexture"]
+    assert not spec.commercial_use                     # FLUX.2-klein ağırlıkları BFL lisansı
+    assert queue_for("ultratex-retexture", 0) == "ultratex-gpu0"
+    for preset in spec.quality_presets:
+        resolve_engine_params("ultratex-retexture", preset, None)
