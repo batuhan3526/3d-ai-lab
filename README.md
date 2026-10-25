@@ -19,7 +19,7 @@ toggle.
 - [Installing engines](#installing-engines)
 - [Features](#features)
 - [Engines & licenses](#engines--licenses)
-- [Engine guide: which engine for garments?](docs/showcase/engine-guide/README.md)
+- [Engine guide: which engine for garments?](docs/showcase/engine-guide/README.md) · [Türkçe](docs/showcase/engine-guide/README.tr.md)
 - [Architecture overview](#architecture-overview)
 - [API overview](#api-overview)
 - [Known limits](#known-limits)
