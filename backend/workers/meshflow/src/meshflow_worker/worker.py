@@ -47,12 +47,15 @@ def mesh_refine(
     quality: str = "balanced",
     advanced: dict | None = None,
     ref_image_name: str | None = None,
+    source_project_id: str | None = None,
 ) -> dict:
     """
     Refine (or guided-refine) an existing project mesh.
 
-    The project's current mesh.glb is read, processed, and written back
-    (in-place overwrite). db mesh_path is updated after success.
+    The gateway opens a new project and sends the original as source_project_id:
+    the source mesh.glb is read and the result is written to the new project (the
+    source stays untouched). Without source_project_id the project is refined in place.
+    db mesh_path is updated after success.
 
     engine_id="meshflow-refine"  → MeshFlowRefineEngine (no image needed)
     engine_id="meshflow-guided"  → MeshFlowGuidedEngine (ref_image_name optional)
@@ -63,14 +66,16 @@ def mesh_refine(
         store.set_state(job_id, "STARTED")
         params = resolve_engine_params(engine_id, quality, advanced)
 
-        proj_dir = Path(settings.projects_dir) / "default" / project_id
-        mesh_in = proj_dir / "mesh.glb"
+        base = Path(settings.projects_dir) / "default"
+        proj_dir = base / project_id
+        mesh_in = base / (source_project_id or project_id) / "mesh.glb"
         if not mesh_in.exists():
             raise FileNotFoundError(f"Source mesh not found: {mesh_in}")
 
         store.set_progress(job_id, "shape", 40)
 
-        out = proj_dir / "mesh.glb"  # in-place refine
+        out = proj_dir / "mesh.glb"
+        out.parent.mkdir(parents=True, exist_ok=True)
 
         if engine_id == "meshflow-guided":
             eng = _guided()

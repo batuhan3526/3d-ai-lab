@@ -57,7 +57,9 @@ def generate_texture(self, job_id: str, project_id: str, source_project_id: str,
         ref = Path(settings.uploads_dir) / image_name if image_name else base / source_project_id / "ref_image.png"
         if not ref.exists():
             raise RuntimeError("Referans görsel yok: bir görsel yükleyin (kaynak projede ref_image.png da yok).")
-        store.set_progress(job_id, "texture", 30)
+        # Hi3D'den devredilen işte ilerleme zaten ~50: geri düşmesin.
+        done = int((store.get(job_id) or {}).get("percent") or 0)
+        store.set_progress(job_id, "texture", max(30, done))
         out = base / project_id / "mesh.glb"
         _get().retexture(str(src), str(ref), params, out)
         store.set_progress(job_id, "pack", 95)
