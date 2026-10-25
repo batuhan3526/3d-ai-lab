@@ -1,0 +1,14 @@
+# torch==2.5.0 torchvision==0.20.0  (--index-url https://download.pytorch.org/whl/cu124)
+# flash-attn 2.7.4.post1 (official cu12/torch2.5/cp310 wheel)
+-c ../../../engines/Hi3D/docker/constraints.txt
+-e ../../../engines/Hi3D[inference]
+xatlas
+setuptools
+
+# Celery worker plumbing
+celery>=5.4
+redis>=5
+pydantic>=2.6
+pydantic-settings>=2.2
+structlog
+python-dotenv

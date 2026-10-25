@@ -257,6 +257,26 @@ _ULTRATEX_PRESETS = {
     "balanced": {"resolution": 1024, "steps": 25, "texture_size": 2048},
     "quality": {"resolution": 2048, "steps": 25, "texture_size": 4096},
 }
+# Hi3D v1.0: mevcut mesh + referans görsel → yüksek çözünürlüklü geometri (yalnız şekil).
+_HI3D_PARAMS = [
+    {"key": "resolution", "label": "Çözünürlük", "type": "select", "default": 1024, "options": [512, 1024, 1536],
+     "desc": "Seyrek ızgara: 512 = tek geçiş, 1024 = iki, 1536 = üç geçiş (en ince detay, en yavaş)."},
+    {"key": "steps", "label": "Adım", "type": "int", "default": 25, "min": 4, "max": 50,
+     "desc": "Geçiş başına akış adımı. Yüksek = daha temiz yüzey, daha yavaş."},
+    {"key": "faces", "label": "Yüz sayısı", "type": "select", "default": 200000, "options": [100000, 200000, 500000],
+     "desc": "Sonuç bu sayıya sadeleştirilir; yüksek = daha çok detay, daha ağır dosya."},
+    {"key": "keep_openings", "label": "Açıklıkları koru", "type": "bool", "default": True,
+     "desc": "Kıyafette yaka/kol/etek ucu açık kalır (giydirme için şart); kapalı nesnelerde kapatın."},
+    {"key": "retexture", "label": "Sonra dokula (UltraTex)", "type": "bool", "default": True,
+     "desc": "Hi3D yalnız şekil üretir; açıkken inceltilmiş model referans görselle yeniden dokulanır."},
+    {"key": "seed", "label": "Seed (boş=0)", "type": "int", "default": None, "min": 0, "max": 2147483647,
+     "desc": "Aynı seed + aynı girdi ≈ aynı sonuç (GPU çekirdekleri bit-bit belirlenimli değil)."},
+]
+_HI3D_PRESETS = {
+    "fast": {"resolution": 512, "steps": 15},
+    "balanced": {"resolution": 1024, "steps": 25},
+    "quality": {"resolution": 1536, "steps": 25, "faces": 500000},
+}
 _TRIPOSR_PRESETS = {
     "fast": {"mc_resolution": 128, "foreground_ratio": 0.85},
     "balanced": {"mc_resolution": 256, "foreground_ratio": 0.85},
@@ -456,6 +476,21 @@ _REGISTRY: dict[str, EngineSpec] = {
         params=_ULTRATEX_PARAMS,
         presets=_ULTRATEX_PRESETS,
         commercial_use=False,
+    ),
+    # Hi3D refine (kind=edit): family "hi3d" -> queue hi3d-gpuN; task mesh_refine.generate,
+    # retexture açıksa iş ultratex-gpuN'e devredilir.
+    "hi3d-refine": EngineSpec(
+        id="hi3d-refine",
+        label="Hi3D Geometri İncelt (1536³)",
+        kind="edit",
+        quality_presets=["fast", "balanced", "quality"],
+        vram_estimate_mb=20000,
+        license="Hi3D Open License 1.0 (ticari serbest, \"Powered by Hi3D 1.0\" ibaresi; 200k MAU üstü ayrı lisans)",
+        description="Mevcut modelin şeklini referans görsele göre yüksek çözünürlükte yeniden üretir (yaka, dikiş, kırışık).",
+        capabilities=["image-refine"],
+        adapter="hi3d_worker.engine:Hi3DEngine",
+        params=_HI3D_PARAMS,
+        presets=_HI3D_PRESETS,
     ),
     "sf3d-image": EngineSpec(
         id="sf3d-image",

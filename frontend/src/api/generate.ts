@@ -61,6 +61,13 @@ export const retextureImage = (source_project_id: string, file?: File | null) =>
   });
 };
 
+// Hi3D: şekli tasarımın kendi görseline göre yüksek çözünürlükte yeniden üret; ardından UltraTex dokular.
+export const refineHi3d = (source_project_id: string) =>
+  api<{ job_id: string; project_id: string }>("/generate/refine", {
+    method: "POST",
+    body: JSON.stringify({ source_project_id, engine_id: "hi3d-refine" }),
+  });
+
 // F5 v2: sadece işaretli UV bölgesini yeniden dokula (maske = UV-uzayı PNG)
 // gpu opsiyonel: verilmezse form'a hiç girmez → backend default_gpu doldurur (tek-GPU sözleşmesi).
 export const retextureRegion = (

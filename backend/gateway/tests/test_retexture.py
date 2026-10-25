@@ -130,3 +130,55 @@ def test_retexture_image_rejects_non_texture_engine(client):
                     files={"file": ("ref.png", _PNG, "image/png")},
                     data={"source_project_id": client.pid, "engine_id": "triposr"})
     assert r.status_code == 422
+
+
+# Hi3D geometri inceltme (+ UltraTex devri)
+def _concept(client, mannequin=False):
+    from pathlib import Path
+    from common.config import get_settings
+    from gateway.db import get_sessionmaker
+    from gateway.models.orm import Project
+    base = Path(get_settings().projects_dir) / "default" / client.pid
+    (base / "variations").mkdir(parents=True)
+    (base / "ref_image.png").write_bytes(_PNG)
+    if mannequin:
+        (base / "variations" / "mannequin_x.glb").write_bytes(b"glb")
+        with get_sessionmaker()() as s:
+            p = s.get(Project, client.pid)
+            p.customizations = {"color": "#ccc", "decals": [], "mannequin": {"id": "female-a", "posed": "mannequin_x.glb"}}
+            s.commit()
+
+
+def test_refine_hi3d_enqueues_and_hands_over_to_ultratex(client):
+    from pathlib import Path
+    from common.config import get_settings
+    _concept(client, mannequin=True)
+    r = client.post("/generate/refine", headers=_AUTH,
+                    json={"source_project_id": client.pid, "engine_id": "hi3d-refine", "gpu": 1})
+    assert r.status_code == 201, r.text
+    assert client.sent["name"] == "mesh_refine.generate"
+    assert client.sent["queue"] == "hi3d-gpu1"
+    kw = client.sent["kwargs"]
+    assert kw["source_project_id"] == client.pid and kw["retexture_queue"] == "ultratex-gpu1"
+    new = Path(get_settings().projects_dir) / "default" / r.json()["project_id"]
+    assert (new / "ref_image.png").read_bytes() == _PNG               # UltraTex devri bunu okur
+    assert (new / "variations" / "mannequin_x.glb").read_bytes() == b"glb"
+
+
+def test_refine_hi3d_without_retexture(client):
+    _concept(client)
+    r = client.post("/generate/refine", headers=_AUTH,
+                    json={"source_project_id": client.pid, "engine_id": "hi3d-refine",
+                          "advanced": {"retexture": False}, "gpu": 0})
+    assert r.status_code == 201, r.text
+    assert client.sent["kwargs"]["retexture_queue"] is None
+
+
+def test_refine_hi3d_needs_a_reference(client):
+    r = client.post("/generate/refine", headers=_AUTH,
+                    json={"source_project_id": client.pid, "engine_id": "hi3d-refine"})
+    assert r.status_code == 422
+    r = client.post("/generate/refine", headers=_AUTH,
+                    json={"source_project_id": client.pid, "engine_id": "hi3d-refine",
+                          "ref_image_name": "../x.png"})
+    assert r.status_code == 422

@@ -1,0 +1,9 @@
+[project]
+name = "hi3d-worker"
+version = "0.1.0"
+description = "Hi3D v1.0 image-guided geometry refinement Celery worker — Sparc3D refine + keep garment openings"
+requires-python = ">=3.10,<3.11"
+# Hi3D worker — ISOLATED uv venv (engines/Hi3D/.venv, Python 3.10, torch 2.5.0/cu124, flash-attn
+# 2.7.4.post1, spconv-cu120). Built by infra/engines/hi3d.sh from upstream docker/constraints.txt.
+# Weights (engine.sh weights hi3d): hi3d-official/Hi3Dv1.0 (Hi3D Open License 1.0) +
+# facebook/dinov2-large + openai/clip-vit-large-patch14.

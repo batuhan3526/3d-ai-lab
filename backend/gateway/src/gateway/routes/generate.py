@@ -582,13 +582,13 @@ def generate_batch(payload: BatchIn, db: Session = Depends(get_db)) -> BatchOut:
 
 
 class RefineIn(BaseModel):
-    """MeshFlow ile mevcut tasarımın mesh'ini temiz topolojiyle yeniden üret.
-    Non-destructive: kaynak korunur, sonuç YENİ projeye yazılır (retexture gibi)."""
+    """Mevcut tasarımın mesh'ini yeniden üret: MeshFlow (temiz topoloji) veya Hi3D (görsele göre
+    yüksek çözünürlüklü geometri). Non-destructive: kaynak korunur, sonuç YENİ projeye yazılır."""
     source_project_id: str
-    engine_id: str = "meshflow-refine"   # veya "meshflow-guided"
+    engine_id: str = "meshflow-refine"   # veya "meshflow-guided" | "hi3d-refine"
     quality: str = "balanced"
     advanced: dict | None = None
-    ref_image_name: str | None = None    # yalnız meshflow-guided için
+    ref_image_name: str | None = None    # meshflow-guided / hi3d-refine; hi3d'de yoksa kaynağın ref_image.png'si
     gpu: int | None = None               # None → settings.default_gpu (tek-GPU sözleşmesi)
 
 
@@ -643,34 +643,69 @@ def get_matte(name: str) -> FileResponse:
 
 @router.post("/refine", response_model=GenerateOut, status_code=status.HTTP_201_CREATED)
 def generate_refine(payload: RefineIn, db: Session = Depends(get_db)) -> GenerateOut:
-    """MeshFlow remesh: kaynak projenin mesh.glb'sini temiz topolojiyle yeniden üretir.
-    meshflow ailesi -> queue meshflow-gpuN; task mesh_refine.generate."""
+    """Mesh yeniden üretimi. meshflow ailesi → meshflow-gpuN; hi3d ailesi → hi3d-gpuN
+    (task mesh_refine.generate). Hi3D yalnız şekil üretir: `retexture` açıksa (varsayılan) iş
+    bittiğinde UltraTex kuyruğuna devredilir. Hi3D sonucu kaynağın kutusuna oturtulduğu için
+    yeni proje manken/ölçü ayarlarını devralır."""
     gpu = _resolve_gpu(payload.gpu)
     spec = _require_available(payload.engine_id)
-    if engine_family(payload.engine_id) != "meshflow":
+    family = engine_family(payload.engine_id)
+    if family not in ("meshflow", "hi3d"):
         raise HTTPException(422, f"{spec.label} refine motoru değil")
     try:
-        resolve_engine_params(payload.engine_id, payload.quality, payload.advanced)
+        params = resolve_engine_params(payload.engine_id, payload.quality, payload.advanced)
     except ValueError as e:
         raise HTTPException(422, str(e)) from None
     src = db.get(Project, payload.source_project_id)
     if src is None:
         raise HTTPException(404, "Kaynak tasarım bulunamadı")
-    proj = Project(
-        user_id=_USER,
-        name=f"temiz: {(src.name or 'mesh')[:40]}",
-        garment_type=src.garment_type,
-        template_id="meshflow-refined",
-        customizations={"color": "#cccccc", "decals": []},
-        engine_id=payload.engine_id,
-    )
+    settings = get_settings()
+    base = Path(settings.projects_dir) / _USER
+    retexture_queue = None
+    if family == "hi3d":
+        if payload.ref_image_name:
+            if Path(payload.ref_image_name).name != payload.ref_image_name or \
+                    not (Path(settings.uploads_dir) / payload.ref_image_name).exists():
+                raise HTTPException(422, "Referans görsel bulunamadı")
+        elif not (base / src.id / "ref_image.png").exists():
+            raise HTTPException(422, "Referans görsel gerekli (kaynak projede konsept görsel yok).")
+        if params.get("retexture"):
+            _require_available("ultratex-retexture")
+            retexture_queue = queue_for("ultratex-retexture", gpu)
+        proj = Project(
+            user_id=_USER,
+            name=f"hi3d: {(src.name or 'mesh')[:40]}",
+            garment_type=src.garment_type,
+            template_id="hi3d-refined",
+            customizations=dict(src.customizations or {}),
+            engine_id=payload.engine_id,
+        )
+    else:
+        proj = Project(
+            user_id=_USER,
+            name=f"temiz: {(src.name or 'mesh')[:40]}",
+            garment_type=src.garment_type,
+            template_id="meshflow-refined",
+            customizations={"color": "#cccccc", "decals": []},
+            engine_id=payload.engine_id,
+        )
     db.add(proj)
     db.commit()
     db.refresh(proj)
+    if family == "hi3d":
+        # konsept görsel (UltraTex devri onu okur) + pozlu manken yeni projeye
+        dst = base / proj.id
+        dst.mkdir(parents=True, exist_ok=True)
+        if (base / src.id / "ref_image.png").exists():
+            shutil.copy2(base / src.id / "ref_image.png", dst / "ref_image.png")
+        posed = ((proj.customizations or {}).get("mannequin") or {}).get("posed")
+        if posed and (base / src.id / "variations" / posed).exists():
+            (dst / "variations").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(base / src.id / "variations" / posed, dst / "variations" / posed)
     job_id = uuid.uuid4().hex
     _job_store().create(job_id, {"kind": "refine", "project_id": proj.id})
     from common.celery_app import celery_app
-    celery_app.send_task("mesh_refine.generate", kwargs={
+    kwargs = {
         "job_id": job_id,
         "project_id": proj.id,
         "source_project_id": payload.source_project_id,
@@ -678,5 +713,8 @@ def generate_refine(payload: RefineIn, db: Session = Depends(get_db)) -> Generat
         "quality": payload.quality,
         "advanced": payload.advanced,
         "ref_image_name": payload.ref_image_name,
-    }, queue=f"meshflow-gpu{gpu}")
+    }
+    if family == "hi3d":
+        kwargs["retexture_queue"] = retexture_queue
+    celery_app.send_task("mesh_refine.generate", kwargs=kwargs, queue=queue_for(payload.engine_id, gpu))
     return GenerateOut(job_id=job_id, project_id=proj.id)

@@ -25,6 +25,7 @@ automatically with the same code, and compared them side by side.
 | Free licence, no gated weights | TRELLIS (`trellis-image`) |
 | Quick look in seconds | TripoSR (`triposr`) |
 | New texture from an image, same shape | UltraTex (`ultratex-retexture`) |
+| Sharper shape detail on an existing model | Hi3D (`hi3d-refine`), then UltraTex |
 | Low VRAM (≤ 8 GB) | Hunyuan3D-2.1 shape, Stable Fast 3D, TripoSR |
 
 ### Women's garments
@@ -99,6 +100,46 @@ reference is baked into the albedo, so the model looks lit even under flat light
 - Limits: parts no camera sees (inside the neckline, under the arms) get the old texture or the
   nearest colour; a reference that shows only the front means the back is invented.
 
+### Shape detail: Hi3D v1.0
+
+Hi3D v1.0 (Sparc3D-based, released October 2026) rebuilds the **shape** of a model you
+already have at a higher resolution, guided by the same reference image: the coarse mesh
+gives the overall form, the image gives the detail (collar, seams, gathers, folds). It
+produces geometry only, so the app hands the result straight to UltraTex for a new texture.
+
+![TRELLIS.2 garments: own shape vs Hi3D (shaded geometry)](hi3d-garments.png)
+
+![Red dress: original, Hi3D geometry, Hi3D + UltraTex](hi3d-red-dress.png)
+
+What we saw on these garments:
+
+- **Dress, skirt, chinos:** clean, smooth fabric with sharper seams, waistband and gathers;
+  TRELLIS.2's flipped-normal patches (orange above) are gone.
+- **Blouse, dress shirt, bomber:** body and sleeves get finer, but the hem, the bomber's rib
+  knit and the collar **tear** where the fabric is thin and layered. This comes from the
+  model itself, so pick these results by eye.
+- Hi3D closes every hole by default, which turns a garment into a solid (the hem and
+  neckline get capped and a mannequin cannot go inside). Our worker keeps the **openings**
+  (neckline, armholes, hem, legs) open and fills only short loops (pinholes). The **Keep
+  openings** option turns this off for closed objects.
+- The result is put back into the source model's bounding box, so mannequin and
+  measurements still line up and the new design inherits them.
+
+- In the app: **Design → Add shape detail (Hi3D)** uses the design's own image; a new design
+  is created and, by default, retextured by UltraTex. The red dress took **29 min** end to
+  end on 2× 24 GB (Hi3D 8 min, UltraTex 21 min: the new mesh has no UV map yet and
+  unwrapping 200k faces adds ~10 min).
+- API: `POST /generate/refine` with `"engine_id": "hi3d-refine"` (`advanced`:
+  `resolution` 512/1024/1536, `faces`, `keep_openings`, `retexture`).
+- Install: `bash infra/scripts/engine.sh install hi3d`. Weights: hi3d-official/Hi3Dv1.0
+  (7.7 GB, open) plus DINOv2-large and CLIP ViT-L/14 (~3 GB).
+- Hardware: **one 24 GB card at 1024** (12–20 GB peak, **3.5–11 min** per garment).
+  1536 fitted the dress (16 GB, 11 min) but the bomber needed 30 GB and spilled into
+  shared system memory (27 min): use 1536 only on simple shapes or bigger cards.
+- Licence: Hi3D Open License 1.0, **commercial use allowed** with a visible "Powered by
+  Hi3D 1.0" link to hi3d.ai (the app shows it next to the button); a separate licence is
+  needed above 200,000 monthly users or USD 1M monthly revenue.
+
 ### Known issues
 
 - Tight sleeves on jackets and shirts still touch the arm.
@@ -107,6 +148,7 @@ reference is baked into the albedo, so the model looks lit even under flat light
 - Hunyuan3D's kilt is placed like a tube top on the chest.
 - Single-photo engines invent the back; a multi-view input (front/side/back) is the next step.
 - UltraTex is slow on 24 GB cards and needs two of them.
+- Hi3D tears thin, layered fabric (shirt hems, rib knit, collars).
 
 ## Türkçe
 
@@ -131,6 +173,7 @@ otomatik giydirdik ve yan yana karşılaştırdık.
 | Serbest lisans, erişim izni yok | TRELLIS (`trellis-image`) |
 | Saniyeler içinde hızlı bakış | TripoSR (`triposr`) |
 | Aynı şekle görselden yeni doku | UltraTex (`ultratex-retexture`) |
+| Var olan modele daha ince şekil detayı | Hi3D (`hi3d-refine`), ardından UltraTex |
 | Düşük VRAM (≤ 8 GB) | Hunyuan3D-2.1 şekil, Stable Fast 3D, TripoSR |
 
 ### Kadın kıyafetleri
@@ -204,6 +247,46 @@ görünür.
 - Sınırlar: hiçbir kameranın görmediği yerler (yaka içi, koltuk altı) eski dokudan ya da en
   yakın renkten doldurulur; referans yalnız önü gösteriyorsa sırt uydurulur.
 
+### Şekil detayı: Hi3D v1.0
+
+Hi3D v1.0 (Sparc3D tabanlı, Ekim 2026) elinizdeki modelin **şeklini** aynı referans görsele
+göre daha yüksek çözünürlükte yeniden üretir: kaba mesh genel formu, görsel ise detayı (yaka,
+dikiş, büzgü, kırışık) verir. Yalnız geometri üretir; uygulama sonucu doğrudan UltraTex'e
+verip yeni doku çizdirir.
+
+![TRELLIS.2 kıyafetleri: kendi şekli ve Hi3D (gölgeli geometri)](hi3d-garments.png)
+
+![Kırmızı elbise: orijinal, Hi3D geometri, Hi3D + UltraTex](hi3d-red-dress.png)
+
+Bu kıyafetlerde gördüklerimiz:
+
+- **Elbise, etek, kumaş pantolon:** pürüzsüz, temiz kumaş; dikiş, bel bandı ve büzgüler
+  daha keskin; TRELLIS.2'nin ters normal lekeleri (yukarıda turuncu) kayboluyor.
+- **Bluz, gömlek, bomber:** gövde ve kollar incelir ama etek ucu, bomber'ın ribanası ve yaka,
+  kumaşın ince ve katmanlı olduğu yerlerde **yırtılıyor**. Bu modelin kendisinden geliyor;
+  bu sonuçları gözle seçin.
+- Hi3D normalde her deliği kapatır ve kıyafeti katı bir cisme çevirir (etek ucu ve yaka
+  kapanır, manken içine giremez). Worker'ımız **açıklıkları** (yaka, kol ağzı, etek ucu,
+  paçalar) açık bırakır, yalnız kısa halkaları (iğne delikleri) doldurur. Kapalı nesneler
+  için **Açıklıkları koru** seçeneği kapatılabilir.
+- Sonuç kaynak modelin kutusuna geri oturtulur; manken ve ölçüler hizalı kalır, yeni tasarım
+  bunları devralır.
+
+- Uygulamada: **Tasarım → Şekli detaylandır (Hi3D)** tasarımın kendi görselini kullanır; yeni
+  bir tasarım açılır ve varsayılan olarak UltraTex ile dokulanır. Kırmızı elbise 2× 24 GB'da
+  uçtan uca **29 dk** sürdü (Hi3D 8 dk, UltraTex 21 dk: yeni mesh'in UV haritası yok, 200 bin
+  yüzü açmak ~10 dk ekliyor).
+- API: `POST /generate/refine`, `"engine_id": "hi3d-refine"` (`advanced`: `resolution`
+  512/1024/1536, `faces`, `keep_openings`, `retexture`).
+- Kurulum: `bash infra/scripts/engine.sh install hi3d`. Ağırlıklar: hi3d-official/Hi3Dv1.0
+  (7,7 GB, açık) + DINOv2-large ve CLIP ViT-L/14 (~3 GB).
+- Donanım: **1024'te tek 24 GB kart** (tepe 12–20 GB, kıyafet başına **3,5–11 dk**).
+  1536 elbiseye sığdı (16 GB, 11 dk) ama bomber 30 GB istedi ve paylaşılan sistem belleğine
+  taştı (27 dk): 1536'yı yalnız sade şekillerde ya da büyük kartlarda kullanın.
+- Lisans: Hi3D Open License 1.0, **ticari kullanım serbest**; hi3d.ai'ye bağlantılı görünür
+  "Powered by Hi3D 1.0" ibaresi şart (uygulama düğmenin yanında gösteriyor); aylık 200 bin
+  kullanıcı ya da 1 milyon USD aylık gelir üstünde ayrı lisans gerekir.
+
 ### Bilinen sorunlar
 
 - Ceket ve gömleklerde dar kolluk hâlâ kola değiyor.
@@ -212,3 +295,4 @@ görünür.
 - Hunyuan3D'nin kilti göğse tüp gibi yerleşiyor.
 - Tek fotoğraftan çalışan motorlar sırtı uyduruyor; sıradaki adım çok-görünümlü girdi (ön/yan/arka).
 - UltraTex 24 GB kartlarda yavaş ve iki kart istiyor.
+- Hi3D ince ve katmanlı kumaşı (gömlek eteği, riba, yaka) yırtıyor.

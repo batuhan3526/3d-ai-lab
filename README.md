@@ -149,6 +149,11 @@ Everything below is implemented in this repo. Some engines are **gated** or
   (**FLUX.2-klein 9B** + **Qwen3-8B**) repaints the model from 6 angles and bakes a
   new 2K texture; the shape stays the same. Needs 2× 24 GB (or one 80 GB card); see
   the [engine guide](docs/showcase/engine-guide/README.md#texture-from-an-image-ultratex-flux2-klein--qwen3-8b).
+- **Shape detail from an image** — **Hi3D v1.0** rebuilds the model's geometry at up to
+  1536³ from its own image (sharper collars, seams, gathers; garment openings stay open),
+  then UltraTex retextures it. One 24 GB card at 1024; commercial use allowed with the
+  "Powered by Hi3D 1.0" link; see the
+  [engine guide](docs/showcase/engine-guide/README.md#shape-detail-hi3d-v10).
 - **Region brush re-texture** — brush a region on the model and regenerate just
   that area.
 - **FLUX motif decals** _(gated)_ — generate a 2D motif from a prompt, matte it
@@ -276,6 +281,7 @@ during model load, not a crash at startup.
 | `sam3d-image` | real-photo → 3D + tex | ~24 GB | ✓ | Meta SAM License · conditional |
 | `intex-retexture` | re-texture / region brush | ~8 GB | no | InTeX (no license) · SD1.5 OpenRAIL-M |
 | `ultratex-retexture` | texture from a reference image (6 views → UV) | 2× 24 GB | ✓ FLUX.2-klein | MIT code · FLUX.2-klein **non-commercial** · Qwen3-8B Apache-2.0 |
+| `hi3d-refine` | image-guided shape detail (geometry only → UltraTex) | ~12–20 GB | no | Hi3D Open License · OK with "Powered by Hi3D 1.0" link (<200k MAU / <$1M/mo) |
 | `flux-motif` | 2D motif → decal / bake | ~16 GB | ✓ | FLUX.1-dev · **non-commercial** |
 | `worldtracing-image` | image → 3D | ~12 GB | ✓ | CC BY-NC-ND · **non-commercial** |
 | `meshflow-refine` | remesh / clean topology | ~10 GB | ✓ | FAIR NC · **non-commercial** |
@@ -353,6 +359,8 @@ assets so phones can fetch them without an auth header.
   their licenses and download weights.
 - **UltraTex** was built for an 80 GB GPU; on 2× 24 GB it takes 5–9 minutes per model
   and uses both cards while it runs.
+- **Hi3D** tears thin, layered fabric (shirt hems, rib knit, collars); dresses, skirts and
+  trousers come out clean. 1536³ can exceed 24 GB on complex garments.
 - `flex4dhuman-4d` and `pixworld-scene` are placeholders (no upstream release yet).
 
 ---

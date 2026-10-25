@@ -10,7 +10,7 @@ import { ColorPicker } from "../components/ColorPicker";
 import { DecalUploader } from "../components/DecalUploader";
 import { ExportMenu } from "../components/ExportMenu";
 import { uploadThumbnail } from "../api/projects";
-import { retexture, retextureImage, generateMotif, generateMotifBake, getJob, decalUrl, DEFAULT_MOTIF_ENGINE, type StyleSource, type PbrChannels } from "../api/generate";
+import { retexture, retextureImage, refineHi3d, generateMotif, generateMotifBake, getJob, decalUrl, DEFAULT_MOTIF_ENGINE, type StyleSource, type PbrChannels } from "../api/generate";
 import { listEngines } from "../api/engines";
 import { generateTile } from "../api/generate";
 import { DecalEditPanel } from "../components/DecalEditPanel";
@@ -230,6 +230,11 @@ export default function DesignerPage() {
   const [imageTexFile, setImageTexFile] = useState<File | null>(null);
   const imageTexMut = useMutation({
     mutationFn: () => retextureImage(id!, imageTexFile),
+    onSuccess: (r) => navigate(`/progress/${r.job_id}?project=${r.project_id}`),
+  });
+
+  const hi3dMut = useMutation({
+    mutationFn: () => refineHi3d(id!),
     onSuccess: (r) => navigate(`/progress/${r.job_id}?project=${r.project_id}`),
   });
 
@@ -923,6 +928,23 @@ export default function DesignerPage() {
                 </button>
               </div>
 
+              <div className="border-t border-zinc-800 pt-3 space-y-2">
+                <p className="text-sm font-medium text-zinc-300">{t("designer.hi3dTitle")}</p>
+                <p className="text-xs text-zinc-500">
+                  {t("designer.hi3dHint")}{" "}
+                  {/* Hi3D Open License §7: ticari kullanımda bağlantılı atıf zorunlu */}
+                  <a href="https://www.hi3d.ai/" target="_blank" rel="noreferrer" className="underline">Powered by Hi3D 1.0</a>
+                </p>
+                <button
+                  disabled={hi3dMut.isPending}
+                  onClick={() => hi3dMut.mutate()}
+                  data-testid="hi3d-go"
+                  className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg px-4 py-1.5 text-sm w-full"
+                >
+                  {hi3dMut.isPending ? t("designer.sending") : t("designer.hi3dGo")}
+                </button>
+              </div>
+
               {/* F5 v2: bölge işaretleme */}
               <div className="border-t border-zinc-800 pt-3 space-y-2">
                 <label className="flex items-center justify-between text-sm text-zinc-300">
@@ -1061,7 +1083,7 @@ export default function DesignerPage() {
                   </>
                 )}
               </div>
-              {(retextureMut.isError || imageTexMut.isError || bakeMut.isError || motifMut.isError) && (
+              {(retextureMut.isError || imageTexMut.isError || hi3dMut.isError || bakeMut.isError || motifMut.isError) && (
                 <p className="text-red-400 text-xs">{t("designer.error")}</p>
               )}
             </div>

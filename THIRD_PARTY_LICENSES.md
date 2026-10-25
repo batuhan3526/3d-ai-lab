@@ -75,6 +75,15 @@ the full commercial/gated/weight-distribution matrix see
   (Yibo-Zhang/UltraTex). Base model **FLUX.2-klein-base-9B** — FLUX Non-Commercial License
   (Black Forest Labs), gated; text encoder **Qwen3-8B** — Apache-2.0 (Alibaba Qwen). Weights
   are downloaded at install, never bundled.
+- **Hi3D v1.0** — Hi3D Open License Agreement 1.0, © 2026 OCEANO HK HOLDING LIMITED
+  (hi3d-official/Hi3Dv1.0, code + weights, built on Sparc3D). Commercial use allowed with
+  the "Powered by Hi3D 1.0" attribution linking to https://www.hi3d.ai/; a separate licence
+  is required above 200,000 MAU or USD 1M monthly revenue. Required notice: "Hi3D is
+  licensed under the Hi3D Open License Agreement Version 1.0. Copyright © 2026 OCEANO HK
+  HOLDING LIMITED. All rights not expressly granted are reserved. The Hi3D trademarks are
+  owned by OCEANO HK HOLDING LIMITED or its applicable affiliate(s)." Weights are
+  downloaded at install, never bundled; conditioning encoders DINOv2-large (Apache-2.0)
+  and CLIP ViT-L/14 (MIT).
 - **BiRefNet** (ZhengPeng7/BiRefNet) — MIT. Background removal for `trellis2-image` and
   `pixal3d-image` (replaces the gated, non-commercial briaai/RMBG-2.0 default).
 
