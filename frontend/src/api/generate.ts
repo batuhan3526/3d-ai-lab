@@ -45,6 +45,22 @@ export const retexture = (source_project_id: string, prompt: string, prompt_enha
     body: JSON.stringify({ source_project_id, prompt, gpu, prompt_enhance }),
   });
 
+// UltraTex: modeli bir referans görsele göre yeniden dokula (şekil aynı kalır).
+// Görsel verilmezse kaynak projenin konsept görseli kullanılır.
+export const retextureImage = (source_project_id: string, file?: File | null) => {
+  const form = new FormData();
+  form.append("source_project_id", source_project_id);
+  if (file) form.append("file", file);
+  return fetch("/api/generate/retexture-image", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${useAuth.getState().token ?? ""}` },
+    body: form,
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json() as Promise<{ job_id: string; project_id: string }>;
+  });
+};
+
 // F5 v2: sadece işaretli UV bölgesini yeniden dokula (maske = UV-uzayı PNG)
 // gpu opsiyonel: verilmezse form'a hiç girmez → backend default_gpu doldurur (tek-GPU sözleşmesi).
 export const retextureRegion = (

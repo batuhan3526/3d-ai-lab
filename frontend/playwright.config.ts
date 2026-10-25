@@ -3,6 +3,6 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
-  use: { baseURL: "http://localhost:3000", headless: true },
+  use: { baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000", headless: true },
   // Gateway + frontend'in elle çalışıyor olması beklenir (AI worker yok, hızlı).
 });

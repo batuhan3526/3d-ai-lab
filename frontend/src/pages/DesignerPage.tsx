@@ -10,7 +10,7 @@ import { ColorPicker } from "../components/ColorPicker";
 import { DecalUploader } from "../components/DecalUploader";
 import { ExportMenu } from "../components/ExportMenu";
 import { uploadThumbnail } from "../api/projects";
-import { retexture, generateMotif, generateMotifBake, getJob, decalUrl, DEFAULT_MOTIF_ENGINE, type StyleSource, type PbrChannels } from "../api/generate";
+import { retexture, retextureImage, generateMotif, generateMotifBake, getJob, decalUrl, DEFAULT_MOTIF_ENGINE, type StyleSource, type PbrChannels } from "../api/generate";
 import { listEngines } from "../api/engines";
 import { generateTile } from "../api/generate";
 import { DecalEditPanel } from "../components/DecalEditPanel";
@@ -224,6 +224,12 @@ export default function DesignerPage() {
 
   const retextureMut = useMutation({
     mutationFn: () => retexture(id!, retexturePrompt, true),
+    onSuccess: (r) => navigate(`/progress/${r.job_id}?project=${r.project_id}`),
+  });
+
+  const [imageTexFile, setImageTexFile] = useState<File | null>(null);
+  const imageTexMut = useMutation({
+    mutationFn: () => retextureImage(id!, imageTexFile),
     onSuccess: (r) => navigate(`/progress/${r.job_id}?project=${r.project_id}`),
   });
 
@@ -898,6 +904,25 @@ export default function DesignerPage() {
                 {retextureMut.isPending ? t("designer.sending") : t("designer.retextureAll")}
               </button>
 
+              <div className="border-t border-zinc-800 pt-3 space-y-2">
+                <p className="text-sm font-medium text-zinc-300">{t("designer.imageTexTitle")}</p>
+                <p className="text-xs text-zinc-500">{t("designer.imageTexHint")}</p>
+                <label className="block text-xs text-zinc-400">
+                  {t("designer.imageTexPick")}
+                  <input type="file" accept="image/*" data-testid="imagetex-file"
+                    onChange={(e) => setImageTexFile(e.target.files?.[0] ?? null)}
+                    className="mt-1 block w-full text-xs file:mr-2 file:rounded file:border-0 file:bg-zinc-700 file:px-2 file:py-1 file:text-zinc-200" />
+                </label>
+                <button
+                  disabled={imageTexMut.isPending}
+                  onClick={() => imageTexMut.mutate()}
+                  data-testid="imagetex-go"
+                  className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 rounded-lg px-4 py-1.5 text-sm w-full"
+                >
+                  {imageTexMut.isPending ? t("designer.sending") : t("designer.imageTexGo")}
+                </button>
+              </div>
+
               {/* F5 v2: bölge işaretleme */}
               <div className="border-t border-zinc-800 pt-3 space-y-2">
                 <label className="flex items-center justify-between text-sm text-zinc-300">
@@ -1036,7 +1061,7 @@ export default function DesignerPage() {
                   </>
                 )}
               </div>
-              {(retextureMut.isError || bakeMut.isError || motifMut.isError) && (
+              {(retextureMut.isError || imageTexMut.isError || bakeMut.isError || motifMut.isError) && (
                 <p className="text-red-400 text-xs">{t("designer.error")}</p>
               )}
             </div>
