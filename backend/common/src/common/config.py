@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     bfl_api_key: str = ""
     ideogram_api_key: str = ""
     recraft_api_key: str = Field(default="", validation_alias=AliasChoices("recraft_api_key", "RECRAFT_API_KEY", "RECRAFT_API_TOKEN"))
+    # İki parçalı kimlikler tek değişkende "ID:SECRET" biçiminde.
+    tencentcloud_api_key: str = ""      # SecretId:SecretKey
+    hitem3d_api_key: str = ""           # client_id:client_secret
+    neural4d_api_key: str = ""
+    threedaistudio_api_key: str = ""
+    atlascloud_api_key: str = ""
+    ark_api_key: str = ""
 
     # Translate (Faz 2+)
     translate_backend: str = "none"

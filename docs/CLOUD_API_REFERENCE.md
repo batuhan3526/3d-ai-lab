@@ -408,3 +408,143 @@ Docs: recraft.ai/docs/api-reference/{endpoints, getting-started, appendix, prici
 | BFL FLUX direct | image | ✅ | `input_image*` | `result.sample` URL (10 min) | `BFL_API_KEY` | poll `polling_url` |
 | Ideogram v2 | image | ✅ (+transparent endpoint) | style refs | `data[0].url` | `IDEOGRAM_API_KEY` | sync (opt. async) |
 | Recraft | image | ✅ (SVG via `_vector`) | – | `data[0].url` (webp/png/svg) | `RECRAFT_API_TOKEN` | sync |
+
+---
+
+# Additions (researched 2026-10-25)
+
+Same rules as above: taken from vendor docs, **not tested with a live key**. Every adapter is covered by a
+fake-server test in `backend/workers/cloud/tests/test_providers.py`. The Tencent signature is checked
+byte for byte against the official `tencentcloud-sdk-python` signer.
+
+## 4b. fal.ai — more 3D models (same queue API and `FAL_KEY`)
+
+Every fal output file is `{url, content_type, file_name, file_size}`. The GLB key differs per model, so the
+adapter tries `model_glb` → `model_mesh` → `model_urls.glb` → `model_urls.pbr_model` → `individual_glbs[0]`
+→ `model`, skipping any file whose type or name says OBJ/FBX.
+
+| Engine | model_id | Image field | Main options we send | GLB at | Price |
+|---|---|---|---|---|---|
+| `cloud-faltripo-*` | `tripo3d/h3.1/{text,image}-to-3d` | `image_url` | `texture`, `pbr`, `texture_quality`/`geometry_quality` (`detailed` on high), `model_seed`/`texture_seed` | `model_mesh` (FBX if `quad`) / `model_urls.glb` | text $0.10–0.30, image $0.20–0.40, +$0.20 detailed |
+| `cloud-falmeshy-*` | `meshy/v7.1/{text,image}-to-3d` | `image_url` | `target_polycount` 10k/30k/100k, `enable_pbr`, image `should_texture`, text `mode` full/preview (prompt ≤600) | `model_glb` | $0.80 bare / $1.20 textured |
+| `cloud-falrodin-text` | `fal-ai/hyper3d/rodin/v2.5/text-to-3d` | – | `tier` `Gen-2.5-Low/Medium/High`, `material` PBR/None, `geometry_file_format` glb, `seed` 0–65535 | `model_mesh` | $0.40 (+$0.80 HighPack) |
+| `cloud-falrodin-image` | `fal-ai/hyper3d/rodin/v2.5` (no `/image-to-3d` suffix: 404) | `image_urls` (list ≤5) | as above | `model_mesh` | $0.40 |
+| `cloud-falhunyuanrapid-image` | `fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d` | `input_image_url` | `enable_pbr`, `enable_geometry` | `model_urls.glb` (`model_glb` may be OBJ) | $0.225, +$0.15 PBR |
+| `cloud-falhitem3d-image` | `hitem3d/hi3d/v3.0/image-to-3d` | `image_url` | `enable_texture`, `enable_pbr`, `face_count` 300k/1M/2M, `export_format` glb | `model_mesh` | $2.10 (2048quality) – $9.10 (master) |
+| `cloud-falsam3d-image` | `fal-ai/sam-3/3d-objects` | `image_url` | `prompt` (segmentation text, default "car" → we send "garment"), `export_textured_glb` | `model_glb` or `individual_glbs[i]` | "$0.02 per unit" (unit UNVERIFIED) |
+| `cloud-falpixal3d-image` | `fal-ai/pixal3d` | `image_url` | `resolution` 1024/1536, `seed` | `model_glb` | $0.30 / $0.42 |
+
+Also on fal, not wired: multi-view variants (`tripo3d/h3.1/multiview-to-3d`, `meshy/v7.1/multi-image-to-3d`,
+`hitem3d/hi3d/v3.0/multi-view-to-3d`), Tripo P2 low-poly (`tripo3d/p2/*`, $1.00–1.30), Rodin fast
+(`.../v2.5/fast`, $0.10), `fal-ai/reconviagen-0.5`, 3D-to-3D tools (retexture, rigging, remesh, part split).
+`fal-ai/bytedance/seed3d/image-to-3d` is missing from fal's listing (probably deprecated) → Seed3D goes through Atlas Cloud.
+
+## 6b. Replicate — more 3D models (`REPLICATE_API_TOKEN`)
+
+| Engine | Model | Endpoint | Input | Output | Price |
+|---|---|---|---|---|---|
+| `cloud-replicatehunyuan-*` | `tencent/hunyuan-3d-3.1` (**official**) | `POST /v1/models/tencent/hunyuan-3d-3.1/predictions` | `prompt` **or** `image`, `enable_pbr`, `face_count` 40k–1.5M, `generate_type` Normal/Geometry | URL string (.glb) | $0.50 |
+| `cloud-replicatetrellis2-image` | `fishwowater/trellis2` (community) | `POST /v1/predictions` + version `52e1ad68…b226` | `image`, `pipeline_type` 512/1024_cascade/1536_cascade, `texture_size`, `generate_video:false`, `seed`/`randomize_seed` | `{model_file, video, no_background_image}` | ~$0.88 (A100 time) |
+
+Not on Replicate (slugs 404): official TRELLIS.2, Tripo, Meshy, Rodin 2.5, Seed3D, Hitem3D, SF3D, SAM-3D.
+`hyper3d/rodin` exists but is Gen-2 (not wired; Rodin 2.5 is on fal and direct).
+
+## 12. Tencent HY 3D Global (Hunyuan 3D Pro, official)
+
+| Item | Value |
+|---|---|
+| Endpoint | `POST https://hunyuan.intl.tencentcloudapi.com/` (body JSON), `X-TC-Version: 2023-09-01`, `X-TC-Region: ap-singapore` (also `eu-frankfurt`, `na-siliconvalley`) |
+| Auth | TC3-HMAC-SHA256 with SecretId + SecretKey; service `hunyuan`; signed headers `content-type;host` |
+| Env var | `TENCENTCLOUD_API_KEY` = `SecretId:SecretKey` (one line) |
+| Submit | `X-TC-Action: SubmitHunyuanTo3DProJob`: `Model` "3.0"/"3.1", `Prompt` (≤1024) **or** `ImageBase64`/`ImageUrl` (128–5000 px, ≤6 MB raw), `MultiViewImages[]`, `EnablePBR`, `FaceCount` 3000–1.5M (def 500k), `GenerateType` Normal/LowPoly/Geometry/Sketch → `Response.JobId` (24 h) |
+| Poll | `QueryHunyuanTo3DProJob` `{"JobId"}` → `Status` WAIT/RUN/FAIL/DONE, `ErrorCode`, `ErrorMessage`, `ResultFile3Ds[]{Type, Url, PreviewImageUrl}` → pick `Type == "GLB"` |
+| Errors | `Response.Error{Code, Message}` (e.g. `AuthFailure.SignatureFailure`, `RequestLimitExceeded`) |
+| Limits | 20 req/s per action; 3 concurrent Pro jobs |
+| Price | Pro Normal 25 credits, Geometry 15, +10 each for PBR / multi-view / FaceCount; $0.02 per credit postpaid; 200 free credits once |
+| Also | Rapid (`SubmitHunyuanTo3DRapidJob`, prompt ≤200, `ResultFormat`), part split, smart topology, rigging, UV, format convert |
+| Docs | tencentcloud.com/document/api/1284/75540 (submit), /75541 (query), /75535 (signature), product/1284/75281 (billing) |
+
+## 13. Hitem3D (Hi3D by Math Magic, direct)
+
+| Item | Value |
+|---|---|
+| Base | `https://api.hitem3d.ai/open-api/v1` (docs moved to docs.hi3d.ai) |
+| Auth | `POST /auth/token` with `Authorization: Basic base64(client_id:client_secret)` → `data.accessToken`; then `Authorization: Bearer <token>` |
+| Env var | `HITEM3D_API_KEY` = `client_id:client_secret` |
+| Submit | `POST /submit-task` multipart: `images` (file, ≤20 MB) or `multi_images` (≤4, + `multi_images_bit`), `request_type` 1 mesh / 3 mesh+texture, `model` `hi3dv3.0` (also hitem3dv1.5/2.0/2.1), `resolution` `2048quality`/`2048master`, `face` 100k–5M, **`format` 2 = GLB (default 1 = OBJ)**, `pbr` 0/1, `shading`, `rmbg` → `data.task_id` |
+| Poll | `GET /query-task?task_id=` → `data.state` created/queueing/processing/success/failed, `data.url` (1 h), `data.cover_url` |
+| Envelope | `{"code":200,"data":{…},"msg"|"message":"success"}`; `30010000` no balance, `40010000` bad credentials, `50010001` generate failed (refunded) |
+| Price | $0.02/credit: v3.0 2048quality 45 credits ($0.90), 2048master 145 ($2.90); prepaid package required |
+
+## 14. Neural4D (DreamTech, OpenAPI v1)
+
+| Item | Value |
+|---|---|
+| Base | `https://api.neural4d.com/openapi/v1`, `Authorization: Bearer <key>` |
+| Env var | `NEURAL4D_API_KEY` (paid subscription required, else 403 `subscription_required`) |
+| Upload | `POST /files` multipart `file` → `id` (base64 not accepted) |
+| Submit | `POST /3dmodels/generations` (JSON only): `model` `dreamtech/neural4d-2.5`, `prompt` (≤500) **or** `input_references:[{"type":"image","file_id"}]`, `with_texture`, `with_pbr`, `mesh_quality` standard/high/extra_high, `topology`, `target_polycount`, `pose`, `n` → 202 `{id, status}` |
+| Poll | `GET /tasks/task-info?id=` → `status` queued/processing/succeeded/failed, GLB at `output.models[0].model_urls.glb` |
+| Errors | `{"error":{code,message}}`; on 500 `task_registration_failed` do **not** resubmit (already queued and billed) |
+| Price | ~30 credits per model in doc examples; plan prices not readable (JS) |
+
+## 15. 3D AI Studio
+
+| Item | Value |
+|---|---|
+| Base | `https://api.3daistudio.com/v1`, `Authorization: Bearer <key>` |
+| Env var | `THREEDAISTUDIO_API_KEY` |
+| Hunyuan 3D Pro | `POST /3d-models/tencent/generate/pro/`: `model` "3.1", `prompt` **or** `image` (data URI), `enable_pbr`, `face_count`, `generate_type` → GLB. 60 credits (+20 PBR, +20 multi-view) |
+| TRELLIS.2 | `POST /3d-models/trellis2/generate/`: `image`/`image_url`, `resolution` "512"/"1024"/"1536", `textures` (default **false**), `texture_size`, `seed` → GLB. 15–55 credits |
+| Also | Hunyuan Rapid (returns a ZIP of OBJ), Hitem3D v3 (125–650 credits), Tripo 3.0–3.2 |
+| Poll | `GET /generation-request/{task_id}/status/` → `status` PENDING/IN_PROGRESS/FINISHED/FAILED, `results[0].asset` (`asset_type` 3D_MODEL = GLB, ARCHIVE = ZIP; 24 h) |
+| Limits | **3 requests per minute** by default → the adapter polls every 25 s |
+| Price | credits; USD per credit not published |
+
+## 16. Atlas Cloud (ByteDance Seed3D 2.0)
+
+| Item | Value |
+|---|---|
+| Base | `https://api.atlascloud.ai/api/v1/model`, `Authorization: Bearer <key>` |
+| Env var | `ATLASCLOUD_API_KEY` |
+| Submit | `POST /generateImage` (same path for every model): `model` `bytedance/seed3d-v2.0/image-to-3d`, `image` (URL or data URI, ≤10 MB), `subdivision_level` low/medium/high (~100k/500k/1M faces), `file_format` glb → `data.id` (fallback `id`) |
+| Poll | `GET /prediction/{id}` → `data.status` created/processing/completed(/succeeded)/failed, `data.outputs[0]` |
+| Output | **a ZIP** holding one GLB → the adapter unzips it |
+| Price | $0.353 per generation. Also hosts Hunyuan3D Rapid/Pro (listed price $0.02 looks wrong, UNVERIFIED) |
+
+## 17. BytePlus ModelArk (Hyper3D Rodin Gen-2)
+
+| Item | Value |
+|---|---|
+| Base | `https://ark.ap-southeast.bytepluses.com/api/v3`, `Authorization: Bearer <ARK key>` |
+| Env var | `ARK_API_KEY`. Supported regions include **TR**; US and EU are not listed |
+| Submit | `POST /contents/generations/tasks`: `model` `hyper3d-gen2-260112`, `content[]` = text item (English prompt ≤400 + flags `--material PBR --mesh_mode Raw --ff glb --sl medium`) and optional `image_url` items (URL or data URI, ≤5), top-level `seed` 0–65535 |
+| Poll | `GET /contents/generations/tasks/{id}` → `status` queued/running/succeeded/failed/cancelled/expired, `content.file_url` (24 h) |
+| Price | ~$0.40 per model. Also `hitem3d-2-0-251223` (Hitem3D v2.0, image **URL only**, not wired) |
+
+## Checked and not added
+
+| Provider | Why |
+|---|---|
+| CSM.ai (Cube) | Bought by Google (Jan 2026); csm.ai domains no longer resolve (2026-10-25) |
+| Luma Genie | No production API |
+| Spline | No public generation API (export only) |
+| Kaedim | Managed studio service, not a self-serve API |
+| Sloyd | Catalog + sliders, no free-text or photo input; API terms not published |
+
+## Updated summary (3D, all providers)
+
+| Provider | text→3D | image→3D | Env var |
+|---|---|---|---|
+| Tripo3D (direct) | ✅ | ✅ | `TRIPO_API_KEY` |
+| Meshy (direct) | ✅ | ✅ | `MESHY_API_KEY` |
+| Hyper3D Rodin (direct) | ✅ | ✅ | `RODIN_API_KEY` |
+| fal.ai: Hunyuan3D Pro/Rapid, TRELLIS.2, Tripo H3.1, Meshy 7.1, Rodin 2.5, Hitem3D v3, SAM 3D, Pixal3D | ✅ (Hunyuan, Tripo, Meshy, Rodin) | ✅ | `FAL_KEY` |
+| Stability SF3D | ❌ | ✅ | `STABILITY_API_KEY` |
+| Replicate: TRELLIS, TRELLIS.2, Hunyuan3D 3.1 | ✅ (Hunyuan) | ✅ | `REPLICATE_API_TOKEN` |
+| Tencent HY 3D Pro (official) | ✅ | ✅ | `TENCENTCLOUD_API_KEY` |
+| Hitem3D (direct) | ❌ | ✅ | `HITEM3D_API_KEY` |
+| Neural4D | ✅ | ✅ | `NEURAL4D_API_KEY` |
+| 3D AI Studio: Hunyuan3D Pro, TRELLIS.2 | ✅ (Hunyuan) | ✅ | `THREEDAISTUDIO_API_KEY` |
+| Atlas Cloud: Seed3D 2.0 | ❌ | ✅ | `ATLASCLOUD_API_KEY` |
+| BytePlus ModelArk: Rodin Gen-2 | ✅ | ✅ | `ARK_API_KEY` |

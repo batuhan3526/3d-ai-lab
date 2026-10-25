@@ -110,12 +110,23 @@ def generate_image_to_3d(self, job_id: str, project_id: str, image_name: str,
                                         _progress(store, job_id, "cloud", 10, 85))
         store.set_progress(job_id, "pack", 90)
         out = postprocess.to_glb(data, _mesh_out(project_id), fmt)
+        _save_ref_image(image, out.parent)
         _set_mesh_path(get_settings().database_url, project_id, str(out))
         store.succeed(job_id, {"project_id": project_id})
         return {"project_id": project_id}
     except Exception as exc:  # noqa: BLE001
         store.fail(job_id, str(exc))
         raise
+
+
+def _save_ref_image(image: Path, project_dir: Path) -> None:
+    """Girdi görseli projeye ref_image.png olarak yaz: UltraTex/Hi3D tasarımın kendi
+    görselini buradan alır (yerel Hunyuan worker'ı da aynısını yapar)."""
+    try:
+        from PIL import Image
+        Image.open(image).convert("RGBA").save(project_dir / "ref_image.png")
+    except Exception as e:  # noqa: BLE001
+        print(f"[cloud] UYARI: ref_image yazılamadı: {e}", flush=True)
 
 
 def _make_motif(out_path: Path, *, engine_id: str, text: str, style: dict | None,

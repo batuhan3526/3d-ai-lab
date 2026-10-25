@@ -170,6 +170,156 @@ def _replicate3d(f: Fake):
          lambda r: ("authorization" in r.headers) and httpx.Response(200, content=GLB))
 
 
+def _replicate_hunyuan(f: Fake, kind: str):
+    def create(req):
+        b = _j(req)["input"]
+        assert req.headers["authorization"] == f"Bearer {KEY}"
+        assert ("prompt" in b) if kind == "text" else b["image"].startswith("data:image/jpeg;base64,")
+        assert b["generate_type"] == "Normal" and b["face_count"] == 500_000
+        return httpx.Response(201, json={"id": "H", "status": "succeeded", "output": "https://replicate.delivery/h.glb"})
+    f.on("POST", "https://api.replicate.com/v1/models/tencent/hunyuan-3d-3.1/predictions", create)
+    f.on("GET", "https://replicate.delivery/h.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+def _replicate_trellis2(f: Fake):
+    def create(req):
+        b = _j(req)
+        assert b["version"].startswith("fishwowater/trellis2:") and b["input"]["pipeline_type"] == "1024_cascade"
+        assert b["input"]["generate_video"] is False
+        return httpx.Response(201, json={"id": "T", "status": "succeeded",
+                                         "output": {"model_file": "https://replicate.delivery/t.glb", "video": None}})
+    f.on("POST", "https://api.replicate.com/v1/predictions", create)
+    f.on("GET", "https://replicate.delivery/t.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+TC_KEY = "AKIDtest:secretTEST"
+
+
+def _tencent(f: Fake, kind: str):
+    seq = iter(["WAIT", "RUN", "DONE"])
+
+    def api(req):
+        auth = req.headers["authorization"]
+        assert auth.startswith("TC3-HMAC-SHA256 Credential=AKIDtest/") and "/hunyuan/tc3_request" in auth
+        assert "SignedHeaders=content-type;host" in auth and "secretTEST" not in auth
+        assert req.headers["x-tc-version"] == "2023-09-01" and req.headers["x-tc-region"]
+        b, action = _j(req), req.headers["x-tc-action"]
+        if action == "SubmitHunyuanTo3DProJob":
+            assert b["Model"] == "3.1" and b["GenerateType"] == "Normal"
+            assert ("Prompt" in b) if kind == "text" else (base64.b64decode(b["ImageBase64"]) == PNG)
+            return httpx.Response(200, json={"Response": {"JobId": "J1", "RequestId": "r"}})
+        assert action == "QueryHunyuanTo3DProJob" and b == {"JobId": "J1"}
+        st = next(seq)
+        files = [{"Type": "OBJ", "Url": "https://tc/o.zip"}, {"Type": "GLB", "Url": "https://tc/m.glb"}] if st == "DONE" else []
+        return httpx.Response(200, json={"Response": {"Status": st, "ResultFile3Ds": files, "RequestId": "r"}})
+    f.on("POST", "https://hunyuan.intl.tencentcloudapi.com/", api)
+    f.on("GET", "https://tc/m.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+def _hitem3d(f: Fake):
+    seq = iter(["queueing", "processing", "success"])
+
+    def tok(req):
+        assert req.headers["authorization"] == "Basic " + base64.b64encode(TC_KEY.encode()).decode()
+        return httpx.Response(200, json={"code": 200, "message": "success", "data": {"accessToken": "AT"}})
+
+    def submit(req):
+        body = req.content.decode("latin-1")
+        assert req.headers["authorization"] == "Bearer AT"
+        assert 'name="images"' in body and 'name="format"' in body and "hi3dv3.0" in body
+        return httpx.Response(200, json={"code": 200, "data": {"task_id": "T1"}, "msg": "success"})
+
+    def query(req):
+        st = next(seq)
+        return httpx.Response(200, json={"code": 200, "msg": "success", "data": {
+            "task_id": "T1", "state": st, "url": "https://hit/0.glb" if st == "success" else None}})
+    f.on("POST", "https://api.hitem3d.ai/open-api/v1/auth/token", tok)
+    f.on("POST", "https://api.hitem3d.ai/open-api/v1/submit-task", submit)
+    f.on("GET", "https://api.hitem3d.ai/open-api/v1/query-task", query)
+    f.on("GET", "https://hit/0.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+def _neural4d(f: Fake, kind: str):
+    seq = iter(["queued", "processing", "succeeded"])
+
+    def create(req):
+        b = _j(req)
+        assert req.headers["authorization"] == f"Bearer {KEY}" and b["model"] == "dreamtech/neural4d-2.5"
+        assert ("prompt" in b) if kind == "text" else b["input_references"] == [{"type": "image", "file_id": "F1"}]
+        return httpx.Response(202, json={"id": "N1", "status": "queued"})
+
+    def info(req):
+        st = next(seq)
+        out = {"models": [{"model_urls": {"glb": "https://s3.neural4d.com/m.glb"}}]} if st == "succeeded" else None
+        return httpx.Response(200, json={"id": "N1", "status": st, "output": out})
+    f.on("POST", "https://api.neural4d.com/openapi/v1/files", lambda r: httpx.Response(201, json={"id": "F1"}))
+    f.on("POST", "https://api.neural4d.com/openapi/v1/3dmodels/generations", create)
+    f.on("GET", "https://api.neural4d.com/openapi/v1/tasks/task-info", info)
+    f.on("GET", "https://s3.neural4d.com/m.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+def _aistudio(f: Fake, path: str, check):
+    seq = iter(["PENDING", "IN_PROGRESS", "FINISHED"])
+
+    def create(req):
+        assert req.headers["authorization"] == f"Bearer {KEY}"
+        check(_j(req))
+        return httpx.Response(200, json={"task_id": "A1", "created_at": "2026-10-25T00:00:00Z"})
+
+    def status(req):
+        st = next(seq)
+        res = [{"asset": "https://storage.3daistudio.com/a.glb", "asset_type": "3D_MODEL"}] if st == "FINISHED" else []
+        return httpx.Response(200, json={"status": st, "progress": 50, "results": res})
+    f.on("POST", f"https://api.3daistudio.com/v1{path}", create)
+    f.on("GET", "https://api.3daistudio.com/v1/generation-request/A1/status/", status)
+    f.on("GET", "https://storage.3daistudio.com/a.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+def _atlas(f: Fake):
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("model/seed.glb", GLB)
+    seq = iter(["created", "processing", "completed"])
+
+    def sub(req):
+        b = _j(req)
+        assert req.headers["authorization"] == f"Bearer {KEY}"
+        assert b["model"] == "bytedance/seed3d-v2.0/image-to-3d" and b["image"].startswith("data:image/png")
+        return httpx.Response(200, json={"code": 200, "data": {"id": "P1", "status": "processing"}})
+
+    def pred(req):
+        st = next(seq)
+        return httpx.Response(200, json={"data": {"id": "P1", "status": st,
+                                                  "outputs": ["https://atlas/o.zip"] if st == "completed" else []}})
+    f.on("POST", "https://api.atlascloud.ai/api/v1/model/generateImage", sub)
+    f.on("GET", "https://api.atlascloud.ai/api/v1/model/prediction/P1", pred)
+    f.on("GET", "https://atlas/o.zip", lambda r: httpx.Response(200, content=buf.getvalue()))
+
+
+def _ark(f: Fake, kind: str):
+    seq = iter(["queued", "running", "succeeded"])
+
+    def create(req):
+        b = _j(req)
+        assert req.headers["authorization"] == f"Bearer {KEY}" and b["model"] == "hyper3d-gen2-260112"
+        assert "--ff glb" in b["content"][0]["text"]
+        assert (b["content"][0]["text"].startswith("red hoodie")) if kind == "text" else \
+            b["content"][1]["image_url"]["url"].startswith("data:image/png")
+        return httpx.Response(200, json={"id": "cgt-1"})
+
+    def get(req):
+        st = next(seq)
+        return httpx.Response(200, json={"id": "cgt-1", "status": st,
+                                         "content": {"file_url": "https://ark/m.glb"} if st == "succeeded" else {}})
+    f.on("POST", "https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks", create)
+    f.on("GET", "https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/cgt-1", get)
+    f.on("GET", "https://ark/m.glb", lambda r: httpx.Response(200, content=GLB))
+
+
+_FALGLB = "https://v3b.fal.media/out.glb"
+
+
 CASES_3D = {
     "cloud-tripo-text": lambda f: _tripo(f, "text"),
     "cloud-tripo-image": lambda f: _tripo(f, "image"),
@@ -188,6 +338,49 @@ CASES_3D = {
                                              lambda b: b["image_url"] and b["resolution"] == 1024),
     "cloud-stability-image": _stability3d,
     "cloud-replicate-image": _replicate3d,
+    "cloud-faltripo-text": lambda f: _fal(f, "tripo3d/h3.1/text-to-3d", {"model_mesh": {"url": _FALGLB}},
+                                          lambda b: b["prompt"] and b["pbr"] is True),
+    "cloud-faltripo-image": lambda f: _fal(f, "tripo3d/h3.1/image-to-3d",
+                                           {"model_mesh": {"url": "https://v3b.fal.media/out.fbx"},
+                                            "model_urls": {"glb": {"url": _FALGLB}}},
+                                           lambda b: b["image_url"].startswith("https://v3b.fal.media/")),
+    "cloud-falmeshy-text": lambda f: _fal(f, "meshy/v7.1/text-to-3d", {"model_glb": {"url": _FALGLB}},
+                                          lambda b: b["mode"] == "full" and b["target_polycount"] == 30_000),
+    "cloud-falmeshy-image": lambda f: _fal(f, "meshy/v7.1/image-to-3d", {"model_glb": {"url": _FALGLB}},
+                                           lambda b: b["should_texture"] is True),
+    "cloud-falrodin-text": lambda f: _fal(f, "fal-ai/hyper3d/rodin/v2.5/text-to-3d", {"model_mesh": {"url": _FALGLB}},
+                                          lambda b: b["tier"] == "Gen-2.5-Medium" and b["geometry_file_format"] == "glb"),
+    "cloud-falrodin-image": lambda f: _fal(f, "fal-ai/hyper3d/rodin/v2.5", {"model_mesh": {"url": _FALGLB}},
+                                           lambda b: isinstance(b["image_urls"], list)),
+    "cloud-falhunyuanrapid-image": lambda f: _fal(f, "fal-ai/hunyuan-3d/v3.1/rapid/image-to-3d",
+                                                  {"model_glb": {"url": "https://v3b.fal.media/out.obj", "content_type": "model/obj"},
+                                                   "model_urls": {"glb": {"url": _FALGLB}}},
+                                                  lambda b: b["input_image_url"] and b["enable_geometry"] is False),
+    "cloud-falhitem3d-image": lambda f: _fal(f, "hitem3d/hi3d/v3.0/image-to-3d", {"model_mesh": {"url": _FALGLB}},
+                                             lambda b: b["export_format"] == "glb" and b["face_count"] == 1_000_000),
+    "cloud-falsam3d-image": lambda f: _fal(f, "fal-ai/sam-3/3d-objects",
+                                           {"gaussian_splat": {"url": "https://v3b.fal.media/s.ply"},
+                                            "individual_glbs": [{"url": _FALGLB}]},
+                                           lambda b: b["prompt"] == "garment"),
+    "cloud-falpixal3d-image": lambda f: _fal(f, "fal-ai/pixal3d", {"model_glb": {"url": _FALGLB}},
+                                             lambda b: b["resolution"] == 1024),
+    "cloud-replicatehunyuan-text": lambda f: _replicate_hunyuan(f, "text"),
+    "cloud-replicatehunyuan-image": lambda f: _replicate_hunyuan(f, "image"),
+    "cloud-replicatetrellis2-image": _replicate_trellis2,
+    "cloud-tencent-text": lambda f: _tencent(f, "text"),
+    "cloud-tencent-image": lambda f: _tencent(f, "image"),
+    "cloud-hitem3d-image": _hitem3d,
+    "cloud-neural4d-text": lambda f: _neural4d(f, "text"),
+    "cloud-neural4d-image": lambda f: _neural4d(f, "image"),
+    "cloud-aistudio-text": lambda f: _aistudio(f, "/3d-models/tencent/generate/pro/",
+                                               lambda b: b["model"] == "3.1" and b["prompt"]),
+    "cloud-aistudio-image": lambda f: _aistudio(f, "/3d-models/tencent/generate/pro/",
+                                                lambda b: b["image"].startswith("data:image/png;base64,")),
+    "cloud-aistudiotrellis2-image": lambda f: _aistudio(f, "/3d-models/trellis2/generate/",
+                                                        lambda b: b["resolution"] == "1024" and b["textures"] is True),
+    "cloud-atlasseed3d-image": _atlas,
+    "cloud-arkrodin-text": lambda f: _ark(f, "text"),
+    "cloud-arkrodin-image": lambda f: _ark(f, "image"),
 }
 
 
@@ -195,10 +388,11 @@ CASES_3D = {
 def test_3d_engine_against_fake_api(engine_id, fake, tmp_path):
     CASES_3D[engine_id](fake)
     ticks = []
+    key = TC_KEY if engine_id in ("cloud-tencent-text", "cloud-tencent-image", "cloud-hitem3d-image") else KEY
     if engine_id.endswith("-text"):
-        data, fmt = catalog.text_to_3d(engine_id, "red hoodie", P3, KEY, ticks.append)
+        data, fmt = catalog.text_to_3d(engine_id, "red hoodie", P3, key, ticks.append)
     else:
-        data, fmt = catalog.image_to_3d(engine_id, _img(tmp_path), P3, KEY, ticks.append)
+        data, fmt = catalog.image_to_3d(engine_id, _img(tmp_path), P3, key, ticks.append)
     assert data[:4] == b"glTF" and fmt == "glb"
     if engine_id == "cloud-meshy-text":
         assert fake.state["meshy"] == ["preview", "refine"]
@@ -314,3 +508,12 @@ def test_auth_error_hides_key(fake):
     with pytest.raises(http.CloudError) as e:
         catalog.text_to_image("cloud-openai-image", "x", PI, KEY)
     assert KEY not in str(e.value) and "geçersiz" in str(e.value)
+
+
+def test_tencent_tc3_signature_matches_official_sdk():
+    """Beklenen imza tencentcloud-sdk-python'ın _get_tc3_signature'ından (2026-10-25)."""
+    from cloud_worker.providers import tencent
+    payload = json.dumps({"Prompt": "kırmızı elbise", "Model": "3.1"}, separators=(",", ":"))
+    h = tencent.sign("AKIDx", "SKy", "SubmitHunyuanTo3DProJob", payload, 1761400000)
+    assert h["Authorization"].endswith("Signature=45e573ffc9b1c347c83b8715af1f27008e8d9df2c1b953f0d65fc3e40073d39d")
+    assert "Credential=AKIDx/2025-10-25/hunyuan/tc3_request" in h["Authorization"]

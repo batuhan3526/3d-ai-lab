@@ -108,6 +108,22 @@ def test_text_task_writes_glb_and_succeeds(worker_env, monkeypatch):
     assert seen["key"] == "sk-tripo-test" and seen["params"]["detail"] == "high"
 
 
+def test_image_task_keeps_input_as_ref_image(worker_env, monkeypatch):
+    """UltraTex/Hi3D 'tasarımın kendi görseli'ni ref_image.png'den alır."""
+    worker, r, meshes, tmp = worker_env
+    import trimesh
+    from PIL import Image
+    (tmp / "up").mkdir()
+    Image.new("RGB", (16, 16), "red").save(tmp / "up" / "in.jpg")
+    glb = trimesh.Scene(trimesh.creation.box()).export(file_type="glb")
+    monkeypatch.setattr(worker.catalog, "image_to_3d", lambda *a, **k: (glb, "glb"))
+    worker.generate_image_to_3d.run(job_id="j3", project_id="p2", image_name="in.jpg",
+                                    engine_id="cloud-tripo-image")
+    assert r.hgetall("job:j3")["state"] == "SUCCESS"
+    ref = pathlib.Path(meshes["p2"]).parent / "ref_image.png"
+    assert Image.open(ref).getpixel((0, 0))[0] > 240  # JPEG kaynağı: ~kırmızı
+
+
 def test_missing_key_fails_with_turkish_hint(worker_env):
     worker, r, _, _ = worker_env
     with pytest.raises(http.CloudError):
@@ -133,7 +149,7 @@ def test_motif_task_mattes_provider_png(worker_env, monkeypatch):
 
 
 def test_catalog_covers_registry():
-    from common.engines.registry import list_specs
     from cloud_worker.providers import catalog
+    from common.engines.registry import list_specs
     cloud = {s["id"] for s in list_specs() if s["id"].startswith("cloud-")}
     assert cloud == catalog.engine_ids()

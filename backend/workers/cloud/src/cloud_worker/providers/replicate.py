@@ -13,6 +13,8 @@ from cloud_worker.http import CloudError, client, download, json_of, poll
 BASE = "https://api.replicate.com/v1"
 NAME = "Replicate"
 TRELLIS_VERSION = "firtoz/trellis:e8f6c45206993f297372f5436b90350817bd9b4a0d52d2a76df50c1c8afa2b3c"
+TRELLIS2_VERSION = "fishwowater/trellis2:52e1ad6852599ea10ce8e257635a3c11485cba51c181ea5173e34d9b2955b226"
+HUNYUAN_MODEL = "tencent/hunyuan-3d-3.1"     # resmi model → sürüm kimliği gerekmez
 _MAX_URI = 250_000
 
 
@@ -65,22 +67,54 @@ def _get(url: str, key: str) -> bytes:
     return download(url, NAME, headers={"Authorization": f"Bearer {key}"})
 
 
+def _url_of(out) -> str | None:
+    """Çıktı tek URL, liste ya da {model_file|mesh} sözlüğü olabilir."""
+    if isinstance(out, list):
+        out = out[0] if out else None
+    if isinstance(out, dict):
+        out = out.get("model_file") or out.get("mesh")
+    return out if isinstance(out, str) and out else None
+
+
+def _hunyuan(inp: dict, params: dict, key: str, tick) -> tuple[bytes, str]:
+    tex = bool(params.get("texture", True))
+    inp |= {"generate_type": "Normal" if tex else "Geometry",
+            "enable_pbr": tex and params.get("detail") == "high",
+            "face_count": {"low": 100_000, "medium": 500_000, "high": 1_000_000}[params.get("detail", "medium")]}
+    url = _url_of(run(f"/models/{HUNYUAN_MODEL}/predictions", {"input": inp}, key, tick).get("output"))
+    if not url:
+        raise CloudError(f"{NAME}: Hunyuan3D çıktısı yok")
+    return _get(url, key), "glb"
+
+
 def image_to_3d(image: Path, params: dict, key: str, tick=None, *, variant: str = "") -> tuple[bytes, str]:
     seed = int(params.get("seed") or 0)
-    inp = {"images": [small_data_uri(image)], "generate_model": True,
-           "generate_color": bool(params.get("texture", True)),
-           "texture_size": {"low": 512, "medium": 1024, "high": 2048}[params.get("detail", "medium")],
-           "seed": seed, "randomize_seed": seed == 0}
-    pred = run("/predictions", {"version": TRELLIS_VERSION, "input": inp}, key, tick)
-    out = pred.get("output") or {}
-    url = out.get("model_file") if isinstance(out, dict) else None
+    detail = params.get("detail", "medium")
+    if variant == "hunyuan3d":
+        return _hunyuan({"image": small_data_uri(image)}, params, key, tick)
+    if variant == "trellis2":
+        inp = {"image": small_data_uri(image), "generate_model": True, "generate_video": False,
+               "pipeline_type": {"low": "512", "medium": "1024_cascade", "high": "1536_cascade"}[detail],
+               "texture_size": 2048 if detail == "low" else 4096,
+               "seed": seed, "randomize_seed": seed == 0}
+        version = TRELLIS2_VERSION
+    else:
+        inp = {"images": [small_data_uri(image)], "generate_model": True,
+               "generate_color": bool(params.get("texture", True)),
+               "texture_size": {"low": 512, "medium": 1024, "high": 2048}[detail],
+               "seed": seed, "randomize_seed": seed == 0}
+        version = TRELLIS_VERSION
+    pred = run("/predictions", {"version": version, "input": inp}, key, tick)
+    url = _url_of(pred.get("output"))
     if not url:
         raise CloudError(f"{NAME}: model_file yok (generate_model kapalı olabilir)")
     return _get(url, key), "glb"
 
 
 def text_to_3d(prompt: str, params: dict, key: str, tick=None, *, variant: str = "") -> tuple[bytes, str]:
-    raise CloudError(f"{NAME}: metin→3D modeli tanımlı değil (görsel→3D kullanın)")
+    if variant != "hunyuan3d":
+        raise CloudError(f"{NAME}: metin→3D modeli tanımlı değil (görsel→3D kullanın)")
+    return _hunyuan({"prompt": prompt[:1024]}, params, key, tick)
 
 
 def text_to_image(prompt: str, params: dict, key: str, *, seed: int = 42, tick=None, variant: str = "") -> bytes:

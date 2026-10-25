@@ -239,9 +239,15 @@ Everything below is implemented in this repo. Some engines are **gated** or
 
 ### Cloud engines (optional, paid)
 
-- Tripo, Meshy, Rodin, fal, Stability, Replicate, OpenAI, Gemini, BFL, Ideogram,
-  Recraft — enabled per provider by putting its key in `.env`; no GPU needed.
-  See [`docs/CLOUD_API_REFERENCE.md`](docs/CLOUD_API_REFERENCE.md).
+- **35 cloud 3D engines from 12 providers**: Tripo, Meshy, Rodin, fal.ai (Hunyuan3D,
+  TRELLIS.2, Tripo H3.1, Meshy 7.1, Rodin 2.5, Hitem3D, SAM 3D, Pixal3D), Stability,
+  Replicate (TRELLIS, TRELLIS.2, Hunyuan3D 3.1), Tencent HY 3D (official Hunyuan),
+  Hitem3D, Neural4D, 3D AI Studio, Atlas Cloud (Seed3D 2.0), BytePlus ModelArk (Rodin).
+- Image engines for motifs: OpenAI, Gemini, BFL, Ideogram, Recraft, Stability, fal, Replicate.
+- Each provider is enabled by putting its key in `.env`; no GPU needed. Which one to pick:
+  the [engine guide](docs/showcase/engine-guide/README.md#cloud-apis)
+  ([Türkçe](docs/showcase/engine-guide/README.tr.md#bulut-apileri)). Request/response
+  details: [`docs/CLOUD_API_REFERENCE.md`](docs/CLOUD_API_REFERENCE.md).
 
 ---
 

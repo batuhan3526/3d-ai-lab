@@ -25,6 +25,7 @@ otomatik giydirdik ve yan yana karşılaştırdık.
 | Aynı şekle görselden yeni doku | UltraTex (`ultratex-retexture`) |
 | Var olan modele daha ince şekil detayı | Hi3D (`hi3d-refine`), ardından UltraTex |
 | Düşük VRAM (≤ 8 GB) | Hunyuan3D-2.1 şekil, Stable Fast 3D, TripoSR |
+| Hiç GPU yok | [Bulut API'leri](#bulut-apileri): fal.ai'de TRELLIS.2 (`FAL_KEY`) |
 
 ## Kadın kıyafetleri
 
@@ -140,6 +141,47 @@ verip yeni doku çizdirir.
 - Lisans: Hi3D Open License 1.0, **ticari kullanım serbest**; hi3d.ai'ye bağlantılı görünür
   "Powered by Hi3D 1.0" ibaresi şart (uygulama düğmenin yanında gösteriyor); aylık 200 bin
   kullanıcı ya da 1 milyon USD aylık gelir üstünde ayrı lisans gerekir.
+
+## Bulut API'leri
+
+GPU yoksa ya da meşgulse aynı iş ücretli bir bulut API'sine gönderilebilir. **12 sağlayıcıdan 35 bulut 3D
+motoru** var. Her motor, o sağlayıcının anahtarını `.env`'ye yazıp servisleri yeniden başlatana
+(`bash infra/scripts/start-linux.sh`) kadar kilitli (🔒) görünür. Bulut motoru seçmedikçe buluta hiçbir şey
+gitmez. Uygulamada aynı motor listesinde, fiyatıyla birlikte görünürler.
+
+| Sağlayıcı (`.env` anahtarı) | Motorlar (metin / foto) | ~Model başı ücret | Ne için iyi |
+|---|---|---|---|
+| **fal.ai** (`FAL_KEY`) | Hunyuan3D 3.1 Pro + Rapid, **TRELLIS.2**, Tripo H3.1, Meshy 7.1, Rodin 2.5, Hitem3D v3, SAM 3D, Pixal3D | $0,02–9 | **Tek anahtarla en çok model.** Buradaki TRELLIS.2, yerelde kıyafette kazanan motorun aynısı |
+| Tripo3D (`TRIPO_API_KEY`) | Tripo v3.1 (metin, foto) | $0,05–0,20 | En ucuz dokulu sonuç, hızlı |
+| Meshy (`MESHY_API_KEY`) | Meshy (metin, foto) | $0,20–0,30 | Temiz PBR doku |
+| Hyper3D Rodin (`RODIN_API_KEY`) | Rodin Gen-2.5 (metin, foto) | $0,40–1,50 | Yüksek detay; doğrudan API iş planı istiyor, fal ya da BytePlus üzerinden kullanın |
+| **Tencent HY 3D** (`TENCENTCLOUD_API_KEY` = `SecretId:SecretKey`) | Hunyuan3D 3.1 Pro (metin, foto) | $0,50–1,10 | Resmi Hunyuan API'si (en iyi dokulu yerel motorumuzun arkasındaki model); denemek için 200 ücretsiz kredi |
+| Hitem3D (`HITEM3D_API_KEY` = `client_id:client_secret`) | Hitem3D v3 (foto) | $0,90–2,90 | Çok yoğun geometri (1–2 milyon yüz); aynı model fal'dan ucuz |
+| Neural4D (`NEURAL4D_API_KEY`) | Neural4D 2.5 (metin, foto) | ~30 kredi | API erişimi için ücretli abonelik şart |
+| 3D AI Studio (`THREEDAISTUDIO_API_KEY`) | Hunyuan3D 3.1 Pro (metin, foto), TRELLIS.2 (foto) | 15–100 kredi | Kredi paketi; dakikada 3 istek sınırı |
+| Atlas Cloud (`ATLASCLOUD_API_KEY`) | ByteDance Seed3D 2.0 (foto) | $0,35 | Seed3D'nin hâlâ sunulduğu tek yer |
+| BytePlus ModelArk (`ARK_API_KEY`) | Rodin Gen-2 (metin, foto) | ~$0,40 | İş planı olmadan Rodin; Türkiye desteklenen bölge (ABD/AB değil) |
+| Replicate (`REPLICATE_API_TOKEN`) | TRELLIS, TRELLIS.2, Hunyuan3D 3.1 (resmi) | $0,04–0,90 | Saniye başı ücret; Hunyuan3D 3.1 metinden de üretir |
+| Stability AI (`STABILITY_API_KEY`) | Stable Fast 3D (foto) | ~$0,10 | Saniyeler; yerel SF3D gibi kıyafet şekli zayıf |
+
+Kıyafet için önerimiz:
+- **Başlamak için tek anahtar: `FAL_KEY`.** Önce **TRELLIS.2 (fal.ai)**: yukarıdaki yerel testte en iyi giyinen
+  motor, üstelik yerel DINOv3 izni ve 18 GB VRAM gerekmeden.
+- En iyi doku: **Tencent HY 3D Pro** (resmi Hunyuan3D 3.1) ya da fal'daki Hunyuan3D Pro.
+- En çok detay: **Rodin 2.5 (fal.ai)** ya da **Hitem3D**. Yerel Hi3D'deki gibi ince kumaş katmanları yine yırtılabilir.
+- En ucuz: Tripo (doğrudan) ya da Hunyuan3D Rapid (fal.ai).
+- **Metinden 3D:** Tripo, Meshy, Rodin, Hunyuan3D (fal, Replicate, Tencent, 3D AI Studio), Neural4D.
+
+Her sonuç yerel motorla aynı hattan geçer (`mesh.glb` olarak kaydedilir, ardından mankene otomatik
+oturtulur); yani UltraTex ve Hi3D bulut sonuçlarında da çalışır.
+
+Dürüst durum: her bağlantı sağlayıcının yayımladığı API'ye göre yazıldı ve sahte bir sunucuya karşı test edildi
+(ağ yok). Tencent istek imzası Tencent'in resmi SDK'sıyla birebir aynı. **Henüz hiçbiri gerçek, ücretli bir
+anahtarla çalıştırılmadı**; bu yüzden bulut sonuçları yukarıdaki kıyafet karşılaştırmasında yok. Sizin
+anahtarınızla atılan ilk gerçek iş canlı test olacak.
+- Her sağlayıcının istek ve yanıt alanları: [`docs/CLOUD_API_REFERENCE.md`](../../CLOUD_API_REFERENCE.md).
+- İncelenip eklenmeyenler: CSM (Google satın aldı, sunucuları kapalı), Luma Genie, Spline, Kaedim ve Sloyd.
+  Hiçbirinin herkese açık üretim API'si yok.
 
 ## Bilinen sorunlar
 

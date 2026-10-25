@@ -25,6 +25,7 @@ automatically with the same code, and compared them side by side.
 | New texture from an image, same shape | UltraTex (`ultratex-retexture`) |
 | Sharper shape detail on an existing model | Hi3D (`hi3d-refine`), then UltraTex |
 | Low VRAM (≤ 8 GB) | Hunyuan3D-2.1 shape, Stable Fast 3D, TripoSR |
+| No GPU at all | [Cloud APIs](#cloud-apis): TRELLIS.2 on fal.ai (`FAL_KEY`) |
 
 ## Women's garments
 
@@ -141,6 +142,47 @@ What we saw on all 12 garments:
 - Licence: Hi3D Open License 1.0, **commercial use allowed** with a visible "Powered by
   Hi3D 1.0" link to hi3d.ai (the app shows it next to the button); a separate licence is
   needed above 200,000 monthly users or USD 1M monthly revenue.
+
+## Cloud APIs
+
+No GPU, or the GPUs are busy? The app can send the same job to a paid cloud API instead. There are
+**35 cloud 3D engines from 12 providers**. Each one stays locked (🔒) until you put that provider's key in
+`.env` and restart the services (`bash infra/scripts/start-linux.sh`). Nothing goes to the cloud unless
+you pick a cloud engine. In the app they appear in the same engine list, marked with their price.
+
+| Provider (`.env` key) | Engines (text / photo) | ~Price per model | Good for |
+|---|---|---|---|
+| **fal.ai** (`FAL_KEY`) | Hunyuan3D 3.1 Pro + Rapid, **TRELLIS.2**, Tripo H3.1, Meshy 7.1, Rodin 2.5, Hitem3D v3, SAM 3D, Pixal3D | $0.02–9 | **One key, most models.** TRELLIS.2 here is the same engine that wins locally for garments |
+| Tripo3D (`TRIPO_API_KEY`) | Tripo v3.1 (text, photo) | $0.05–0.20 | Cheapest textured result, fast |
+| Meshy (`MESHY_API_KEY`) | Meshy (text, photo) | $0.20–0.30 | Clean PBR texture |
+| Hyper3D Rodin (`RODIN_API_KEY`) | Rodin Gen-2.5 (text, photo) | $0.40–1.50 | High detail; the direct API needs a business plan, so use fal or BytePlus instead |
+| **Tencent HY 3D** (`TENCENTCLOUD_API_KEY` = `SecretId:SecretKey`) | Hunyuan3D 3.1 Pro (text, photo) | $0.50–1.10 | The official Hunyuan API (the model behind our best-textured local engine); 200 free credits to try |
+| Hitem3D (`HITEM3D_API_KEY` = `client_id:client_secret`) | Hitem3D v3 (photo) | $0.90–2.90 | Very dense geometry (1–2M faces); cheaper than the same model on fal |
+| Neural4D (`NEURAL4D_API_KEY`) | Neural4D 2.5 (text, photo) | ~30 credits | Needs a paid subscription for API access |
+| 3D AI Studio (`THREEDAISTUDIO_API_KEY`) | Hunyuan3D 3.1 Pro (text, photo), TRELLIS.2 (photo) | 15–100 credits | Credit packs; limited to 3 requests per minute |
+| Atlas Cloud (`ATLASCLOUD_API_KEY`) | Seed3D 2.0 by ByteDance (photo) | $0.35 | The only place Seed3D is still served |
+| BytePlus ModelArk (`ARK_API_KEY`) | Rodin Gen-2 (text, photo) | ~$0.40 | Rodin without a business plan; Turkey is a supported region (US/EU are not) |
+| Replicate (`REPLICATE_API_TOKEN`) | TRELLIS, TRELLIS.2, Hunyuan3D 3.1 (official) | $0.04–0.90 | Pay per second; Hunyuan3D 3.1 also does text |
+| Stability AI (`STABILITY_API_KEY`) | Stable Fast 3D (photo) | ~$0.10 | Seconds; same weak garment shape as the local SF3D |
+
+What we recommend for garments:
+- **One key to start: `FAL_KEY`.** Use **TRELLIS.2 (fal.ai)** first: it is the engine that dressed best in the
+  local test above, without the local DINOv3 gating or 18 GB of VRAM.
+- Best texture: **Tencent HY 3D Pro** (official Hunyuan3D 3.1) or Hunyuan3D Pro on fal.
+- Most detail: **Rodin 2.5 (fal.ai)** or **Hitem3D**. Thin fabric layers can still tear, as with local Hi3D.
+- Cheapest: Tripo (direct) or Hunyuan3D Rapid (fal.ai).
+- **Text to 3D:** Tripo, Meshy, Rodin, Hunyuan3D (fal, Replicate, Tencent, 3D AI Studio), Neural4D.
+
+Every result goes through the same pipeline as a local engine (saved as `mesh.glb`, then the automatic fit
+on the mannequin), so UltraTex and Hi3D work on cloud results too.
+
+Honest status: every adapter follows the provider's published API and is tested against a fake server (no
+network). The Tencent request signature matches Tencent's official SDK byte for byte. **None was run with a
+real paid key yet**, so the cloud results are not in the garment comparison above. The first real job with
+your key is the live test.
+- Request and response fields for every provider: [`docs/CLOUD_API_REFERENCE.md`](../../CLOUD_API_REFERENCE.md).
+- Checked and not added: CSM (bought by Google, servers are offline), Luma Genie, Spline, Kaedim and Sloyd.
+  None of them has a public generation API.
 
 ## Known issues
 
