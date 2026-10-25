@@ -41,6 +41,88 @@ class _EncoderOn:
         return getattr(self._enc, name)
 
 
+class _CachedEncoder:
+    """Önceden hesaplanmış metin koşulu. UltraTex girdilerimizde prompt hep boş ("")."""
+
+    def __init__(self, ctx) -> None:
+        self._ctx = ctx
+
+    def __call__(self, txt):
+        if any(t for t in txt):
+            raise ValueError("UltraTex worker yalnız boş prompt ile çalışır")
+        return self._ctx.expand(len(txt), *self._ctx.shape[1:])
+
+    def requires_grad_(self, *a, **k):
+        return self
+
+    def eval(self):
+        return self
+
+
+def _split_blocks(dit, dev, share: float = 0.5) -> int:
+    """Sondaki single blokları `dev`e taşı (toplam parametrenin ~share kadarı).
+
+    Girdiler bloğun kartına taşınır; çıktı yalnız son taşınan bloktan sonra asıl karta
+    döner (blok başına gidip gelme yok). Dönüş: taşınan blok sayısı."""
+    import torch
+    blocks = list(dit.single_blocks)
+    total = sum(p.numel() for p in dit.parameters())
+    moved, size = [], 0
+    for b in reversed(blocks):
+        if size >= share * total:
+            break
+        moved.insert(0, b)
+        size += sum(p.numel() for p in b.parameters())
+    home = next(dit.parameters()).device
+
+    def to(x, d):
+        if torch.is_tensor(x):
+            return x.to(d, non_blocking=True)
+        if isinstance(x, (tuple, list)):
+            return type(x)(to(v, d) for v in x)
+        return x
+
+    for i, b in enumerate(moved):
+        b.to(dev)
+        orig, last = b.forward_kv_extract, i == len(moved) - 1
+
+        def fwd(*a, _orig=orig, _last=last, **k):
+            with torch.cuda.device(dev):           # triton çekirdekleri geçerli kartta çalışır
+                out = _orig(*to(a, dev), **{n: to(v, dev) for n, v in k.items()})
+            return to(out, home) if _last else out
+
+        b.forward_kv_extract = fwd
+    torch.cuda.empty_cache()
+    return len(moved)
+
+
+def _patch_inference_loader() -> None:
+    """Modeller yüklenince: metin koşulunu bir kez hesapla, Qwen3-8B'yi bırak, ikinci kart
+    boşalınca DiT'in yarısını oraya taşı (9B DiT + 2048 token'lık görünümler tek 24 GB'a sığmaz)."""
+    import gc
+
+    import inference_flux2 as inf
+    import torch
+    if getattr(inf, "_split_patched", False):
+        return
+    orig = inf.load_inference_models
+
+    def load(args, accelerator, checkpoint_file, trainer):
+        model, ae, enc = orig(args, accelerator, checkpoint_file, trainer)
+        with torch.no_grad():
+            ctx = enc([""]).to(torch.bfloat16)
+        inner = getattr(enc, "_enc", enc)
+        del enc, inner
+        gc.collect()
+        torch.cuda.empty_cache()
+        if torch.cuda.device_count() > 1:
+            _split_blocks(model.get_base_model(), torch.device("cuda:1"))
+        return model, ae, _CachedEncoder(ctx)
+
+    inf.load_inference_models = load
+    inf._split_patched = True
+
+
 def _patch_text_encoder() -> None:
     import torch
     import train_flux2
@@ -57,6 +139,18 @@ def _patch_text_encoder() -> None:
 
     train_flux2.get_models = get_models
     train_flux2._split_patched = True
+
+
+def _free_gpus() -> None:
+    """Çıkarım bitince modeller düşer ama önbellek ayırıcısı belleği tutar; worker boşta iki
+    kartta da ~22 GB bırakıyordu (ikinci kart başka işlere de lazım)."""
+    import gc
+
+    import torch
+    gc.collect()
+    for i in range(torch.cuda.device_count()):
+        with torch.cuda.device(i):
+            torch.cuda.empty_cache()
 
 
 class UltraTexEngine:
@@ -77,11 +171,11 @@ class UltraTexEngine:
         os.environ.setdefault("QWEN3_8B_PATH", str(base / "qwen3-8b"))
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         _patch_text_encoder()
+        _patch_inference_loader()
         self._ready = True
 
     def unload(self) -> None:
-        import torch
-        torch.cuda.empty_cache()
+        _free_gpus()
 
     def mem_report(self) -> dict:
         try:
@@ -128,10 +222,11 @@ class UltraTexEngine:
                     eval_data_json=str(js), project_dir=str(Path(td) / "out"), resolution=res,
                     inference_num_steps=int(params.get("steps", 25)),
                     guidance=float(params.get("guidance", 4.0)),
-                    seed=int(params.get("seed") or 42), num_workers=0,
+                    seed=int(params.get("seed") or 42), num_workers=0, max_samples=1,
                     save_raw_result=True, save_composite=False, overwrite=True))
             finally:
                 os.chdir(cwd)
+                _free_gpus()                      # 9B DiT + VAE iki kartta ~22'şer GB tutmasın
             result = next(Path(td, "out").rglob("*_result.*"))
             tile = Image.open(result)
             imgs = G.split_tile(tile, res)
