@@ -71,6 +71,10 @@ the full commercial/gated/weight-distribution matrix see
   vendor.
 - **Pixal3D** — MIT, © Tencent ARC / Tsinghua. Code + weights (TencentARC/Pixal3D),
   downloaded at install / first run. Uses MoGe-2 (MIT) for camera estimation.
+- **UltraTex** — MIT code (yiboz2001/UltraTex), LoRA + decoder from ModelScope
+  (Yibo-Zhang/UltraTex). Base model **FLUX.2-klein-base-9B** — FLUX Non-Commercial License
+  (Black Forest Labs), gated; text encoder **Qwen3-8B** — Apache-2.0 (Alibaba Qwen). Weights
+  are downloaded at install, never bundled.
 - **BiRefNet** (ZhengPeng7/BiRefNet) — MIT. Background removal for `trellis2-image` and
   `pixal3d-image` (replaces the gated, non-commercial briaai/RMBG-2.0 default).
 

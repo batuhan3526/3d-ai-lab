@@ -19,6 +19,7 @@ toggle.
 - [Installing engines](#installing-engines)
 - [Features](#features)
 - [Engines & licenses](#engines--licenses)
+- [Engine guide: which engine for garments?](docs/showcase/engine-guide/README.md)
 - [Architecture overview](#architecture-overview)
 - [API overview](#api-overview)
 - [Known limits](#known-limits)
@@ -106,7 +107,7 @@ infra/scripts/engine.sh run <name> [GPU]  # run one worker in the foreground (de
   known-good set in `infra/engines/locks/`.
 - CUDA extensions are compiled for **your** GPU (architecture auto-detected via
   `nvidia-smi`; override with `TORCH_CUDA_ARCH_LIST`).
-- **Gated** engines (FLUX, SF3D, Hunyuan, SAM 3D, MeshFlow, World Tracing) need the
+- **Gated** engines (FLUX, UltraTex, SF3D, Hunyuan, SAM 3D, MeshFlow, World Tracing) need the
   license accepted on Hugging Face and `HF_TOKEN` in `.env`; then
   `engine.sh weights <name>`.
 - `start-linux.sh` starts every installed engine (`ENABLED_ENGINES=auto`) or only
@@ -136,10 +137,18 @@ Everything below is implemented in this repo. Some engines are **gated** or
   **Hunyuan multi-view** _(gated)_).
 - Each engine exposes **fast / balanced / quality** presets plus advanced
   parameters (steps, CFG, seed, texture size, …) surfaced in the UI.
+- **Which engine?** The [engine guide](docs/showcase/engine-guide/README.md) runs every
+  engine on the same 12 garments, dresses each result automatically and compares them
+  side by side (short answer: **TRELLIS.2** for garments, **Hunyuan3D textured** for the
+  best texture).
 
 ### Texture & paint
 
 - **Full re-texture** — regenerate the whole surface from a prompt (**InTeX**).
+- **Texture from an image** _(gated)_ — give a reference photo and **UltraTex**
+  (**FLUX.2-klein 9B** + **Qwen3-8B**) repaints the model from 6 angles and bakes a
+  new 2K texture; the shape stays the same. Needs 2× 24 GB (or one 80 GB card); see
+  the [engine guide](docs/showcase/engine-guide/README.md#texture-from-an-image-ultratex-flux2-klein--qwen3-8b).
 - **Region brush re-texture** — brush a region on the model and regenerate just
   that area.
 - **FLUX motif decals** _(gated)_ — generate a 2D motif from a prompt, matte it
@@ -241,11 +250,12 @@ during model load, not a crash at startup.
 - **Set `HF_TOKEN=` in `.env`** (from
   [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)) before
   fetching gated repos. Gated / non-commercial examples: **FLUX.1-dev**,
+  **FLUX.2-klein-base-9B** (UltraTex),
   **DINOv3**, **SMPL-X**, **SF3D**, **SAM3D**, **meshflow**, **world-tracing**,
   **Hunyuan** (accept terms).
 
 > ⚠️ **Code license ≠ weight license.** Our MIT app license does **not** cover the
-> models. Some engines are non-commercial (FLUX.1-dev, meshflow, world-tracing,
+> models. Some engines are non-commercial (FLUX.1-dev, FLUX.2-klein 9B, meshflow, world-tracing,
 > SMPL/SMPL-X, RMBG-1.4), some are source-available with commercial conditions
 > (Hunyuan3D, SF3D, SAM3D). **Do not assume the MIT badge lets you use every engine
 > commercially.**
@@ -265,6 +275,7 @@ during model load, not a crash at startup.
 | `hunyuan-mv` | multi-view → 3D | ~10 GB | terms | Tencent Community · non-commercial-ish |
 | `sam3d-image` | real-photo → 3D + tex | ~24 GB | ✓ | Meta SAM License · conditional |
 | `intex-retexture` | re-texture / region brush | ~8 GB | no | InTeX (no license) · SD1.5 OpenRAIL-M |
+| `ultratex-retexture` | texture from a reference image (6 views → UV) | 2× 24 GB | ✓ FLUX.2-klein | MIT code · FLUX.2-klein **non-commercial** · Qwen3-8B Apache-2.0 |
 | `flux-motif` | 2D motif → decal / bake | ~16 GB | ✓ | FLUX.1-dev · **non-commercial** |
 | `worldtracing-image` | image → 3D | ~12 GB | ✓ | CC BY-NC-ND · **non-commercial** |
 | `meshflow-refine` | remesh / clean topology | ~10 GB | ✓ | FAIR NC · **non-commercial** |
@@ -340,6 +351,8 @@ assets so phones can fetch them without an auth header.
   patterns for anything you will actually cut.
 - **Several engines are gated / non-commercial** and stay locked until you accept
   their licenses and download weights.
+- **UltraTex** was built for an 80 GB GPU; on 2× 24 GB it takes 5–9 minutes per model
+  and uses both cards while it runs.
 - `flex4dhuman-4d` and `pixworld-scene` are placeholders (no upstream release yet).
 
 ---
