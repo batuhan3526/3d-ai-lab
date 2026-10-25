@@ -200,14 +200,10 @@ class UltraTexEngine:
         m = trimesh.load(mesh_path, force="mesh")
         verts, faces = np.asarray(m.vertices, float), np.asarray(m.faces)
         uv = getattr(m.visual, "uv", None)
-        old_tex = None
         if uv is None or len(uv) != len(verts):
             import xatlas
             vmap, faces, uv = xatlas.parametrize(verts, faces)
             verts = verts[vmap]
-        else:
-            mat = getattr(m.visual, "material", None)
-            old_tex = getattr(mat, "baseColorTexture", None) if mat is not None else None
         normals = trimesh.Trimesh(verts, faces, process=False).vertex_normals
         vb, _, _ = G.normalize(G.gltf_to_blender(verts))
         nb = G.gltf_to_blender(np.asarray(normals))
@@ -231,7 +227,9 @@ class UltraTexEngine:
             tile = Image.open(result)
             imgs = G.split_tile(tile, res)
             tex = G.bake(vb, faces, nb, np.asarray(uv), views, imgs,
-                         tex_res=int(params.get("texture_size", 2048)), fallback=old_tex)
+                         tex_res=int(params.get("texture_size", 2048)))
+        # görülmeyen dokular en yakın görülen renkten dolar; eski doku (çoğu zaman farklı ton)
+        # kumaşta koyu benek bırakıyordu
         out = trimesh.Trimesh(verts, faces, process=False)
         out.visual = trimesh.visual.TextureVisuals(
             uv=uv, material=trimesh.visual.material.PBRMaterial(

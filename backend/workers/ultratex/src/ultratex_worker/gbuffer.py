@@ -29,6 +29,7 @@ FOCAL = 6400.0 / 4096.0          # odak / görüntü genişliği
 TILE = ((0, 1, 3), (2, 4, 5))    # karo düzeni (satır, sütun) → görünüm
 NORM_EXTENT = 0.93               # örnek verideki nesnelerin en büyük boyutu
 NEAR, FAR = 0.1, 10.0
+EDGE_PX = 3                      # bake: görünüm silüetinden atılan kenar (1024 px başına)
 
 
 def gltf_to_blender(v: np.ndarray) -> np.ndarray:
@@ -149,7 +150,9 @@ def bake(vb: np.ndarray, faces: np.ndarray, normals: np.ndarray, uv: np.ndarray,
         ix = np.clip(px.astype(int), 0, res - 1)
         iy = np.clip(py.astype(int), 0, res - 1)
         d = -cam[:, 2]
-        vis = views[i]["mask"][iy, ix] & (np.abs(views[i]["depth"][iy, ix] - d) < 0.01)
+        # silüet kenarında üretilen görselin beyaz zemini sızıyor (beyaz benekler) → kenarı at
+        core = ndimage.binary_erosion(views[i]["mask"], iterations=EDGE_PX * res // 1024)
+        vis = core[iy, ix] & (np.abs(views[i]["depth"][iy, ix] - d) < 0.01)
         campos = CAMS[i][:, 3]
         dirv = campos - pos
         dirv /= np.linalg.norm(dirv, axis=1, keepdims=True)
