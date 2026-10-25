@@ -152,10 +152,31 @@ ensure_conda() {
 # make_conda [extra conda packages...] — creates and activates the engine env.
 make_conda() {
   ensure_conda
+  # nvidia::cuda-toolkit=X sürümü tek başına sabitlemiyor: cuda-version 13.x çözülüp conda-forge'un
+  # 13.x nvcc/cudart'ı ve gcc 15 geliyor → torch cuXY ile JIT/kaynak derlemesi kırılıyor.
+  # cuda-version=X tüm CUDA paketlerini X'e bağlar; CUDA 12.x nvcc en çok gcc 13 kabul eder
+  # (tarif kendi gcc'sini vermediyse 13'e sabitle).
+  local a pins=() cuda12="" own_cc=""
+  for a in "$@"; do
+    case "$a" in
+      nvidia::cuda-toolkit=*) pins+=("cuda-version=${a#*=}"); [[ "${a#*=}" == 12* ]] && cuda12=1 ;;
+      *gcc*|*gxx*) own_cc=1 ;;
+    esac
+  done
+  [ -n "$cuda12" ] && [ -z "$own_cc" ] && pins+=("conda-forge::gcc=13" "conda-forge::gxx=13")
   conda env list | awk '{print $1}' | grep -qx "$ENGINE_CONDA_NAME" \
-    || conda create -y -n "$ENGINE_CONDA_NAME" "python=$ENGINE_PYTHON" "$@"
-  conda activate "$ENGINE_CONDA_NAME"
+    || conda create -y -n "$ENGINE_CONDA_NAME" "python=$ENGINE_PYTHON" "$@" "${pins[@]}"
+  conda_activate "$ENGINE_CONDA_NAME"
   PY="$CONDA_PREFIX/bin/python"
+}
+
+# conda activate.d betikleri (ör. cuda-nvcc) tanımsız değişken okur → set -u altında patlar.
+conda_activate() {
+  local had_u=0
+  case $- in *u*) had_u=1; set +u ;; esac
+  conda activate "$1"
+  [ "$had_u" = 1 ] && set -u
+  return 0
 }
 
 # pip install into the engine env (uv when available — much faster).

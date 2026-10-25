@@ -18,6 +18,11 @@ ENGINE_EXTRA_PATH="$ENGINES_DIR/UltraTex"
 
 engine_env() {
   export TOKENIZERS_PARALLELISM=false
+  # nvdiffrast ilk çalışmada env'in nvcc 12.4'üyle derlenir (JIT). conda-forge CUDA başlıkları
+  # targets/…/include'da, libcudart lib/'de; torch ise $CUDA_HOME/include ve lib64'e bakıyor.
+  export CUDA_HOME="$CONDA_PREFIX"
+  export CPATH="$CONDA_PREFIX/targets/x86_64-linux/include${CPATH:+:$CPATH}"
+  export LIBRARY_PATH="$CONDA_PREFIX/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
   # metin kodlayıcı için ikinci GPU (varsa) görünür olsun
   local n other
   n="$(nvidia-smi -L 2>/dev/null | wc -l)"
@@ -32,7 +37,11 @@ engine_setup_env() { make_conda nvidia::cuda-toolkit=12.4; }
 engine_build() {
   export CUDA_HOME="$CONDA_PREFIX" CUDACXX="$CONDA_PREFIX/bin/nvcc"
   export TORCH_CUDA_ARCH_LIST; TORCH_CUDA_ARCH_LIST="$(cuda_arch)"
-  "$PY" -m pip install -r "$ENGINE_PATH/requirements.txt" modelscope==1.34.0 ninja xatlas scipy "trimesh==4.10.1"
+  # modelscope pkg_resources ister (setuptools 81'de kaldırıldı)
+  # deepspeed yalnız eğitim için ve kaynaktan derleniyor (torch'u kurulumda arar) → atla
+  local req; req="$(mktemp)"
+  grep -v '^deepspeed' "$ENGINE_PATH/requirements.txt" > "$req"
+  "$PY" -m pip install -r "$req" modelscope==1.34.0 "setuptools<81" ninja xatlas scipy "trimesh==4.10.1"
   "$PY" -m pip install --no-build-isolation "git+https://github.com/NVlabs/nvdiffrast.git@v0.3.3"
 }
 
