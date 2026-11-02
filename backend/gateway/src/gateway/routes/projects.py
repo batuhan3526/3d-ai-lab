@@ -269,7 +269,8 @@ def _sample_texture_nn(tex, uv):
 
 
 def _rebake_view_texture(orig_verts, orig_faces, orig_uv, orig_tex,
-                         view_verts, view_uv, view_faces, size=_VIEW_BAKE_SIZE):
+                         view_verts, view_uv, view_faces, size=_VIEW_BAKE_SIZE,
+                         orig_vcol=None):
     """Yeniden-parametrize edilmiş (yeni UV) view mesh'i için, ORİJİNAL dokudan
     yeni bir baseColorTexture bake'ler.
 
@@ -287,6 +288,8 @@ def _rebake_view_texture(orig_verts, orig_faces, orig_uv, orig_tex,
     3. Rasterize edilen texeller için en-yakın orijinal örneğin rengini yaz.
     4. Boş texelleri en-yakın dolu texel rengiyle doldur (dilation) → mipmap
        küçültmesi gutter'lardan beyaz sızdırmasın.
+    Dokusuz, vertex-renkli kaynakta (orig_vcol (V,3) uint8; orig_uv/orig_tex None) örnek
+    rengi vertex renklerinin barycentric karışımıdır (Idol/TripoSR çıktıları).
     """
     import numpy as np
     import trimesh as _tm
@@ -301,9 +304,13 @@ def _rebake_view_texture(orig_verts, orig_faces, orig_uv, orig_tex,
     pts = np.asarray(pts, dtype=np.float64)
     tri = orig_verts[orig_faces[fidx]]                        # (n,3,3)
     bary = _tm.triangles.points_to_barycentric(tri, pts)      # (n,3)
-    face_uv = orig_uv[orig_faces[fidx]]                       # (n,3,2)
-    sample_uv = np.einsum("ij,ijk->ik", bary, face_uv)        # (n,2)
-    sample_col = _sample_texture_nn(orig_tex, sample_uv)      # (n,3) uint8
+    if orig_tex is not None:
+        face_uv = orig_uv[orig_faces[fidx]]                   # (n,3,2)
+        sample_uv = np.einsum("ij,ijk->ik", bary, face_uv)    # (n,2)
+        sample_col = _sample_texture_nn(orig_tex, sample_uv)  # (n,3) uint8
+    else:
+        face_col = orig_vcol[orig_faces[fidx]].astype(np.float64)  # (n,3,3)
+        sample_col = np.clip(np.einsum("ij,ijk->ik", bary, face_col), 0, 255).astype(np.uint8)
     tree = cKDTree(pts)
 
     # 2) View mesh'i UV-uzayında rasterize et → texel başına dünya konumu
@@ -348,7 +355,12 @@ def _rebake_view_texture(orig_verts, orig_faces, orig_uv, orig_tex,
         inds = ndimage.distance_transform_edt(
             ~filled, return_distances=False, return_indices=True)
         img = img[tuple(inds)]
-    return Image.fromarray(img, "RGB")
+    if orig_tex is None:
+        # Dokulu yolda iki V ters çevirmesi birbirini götürür (kaynak doku da trimesh'in
+        # alttan-başlayan UV'siyle aynı satır kuralıyla okunur). Vertex-renk yolunda yalnız
+        # rasterize yarısı var → glTF (üstten-başlayan V) ile hizalamak için satırları çevir.
+        img = img[::-1]
+    return Image.fromarray(np.ascontiguousarray(img), "RGB")
 
 
 def _ensure_view_mesh(project_id: str, faces: int | None = None) -> Path:
@@ -397,6 +409,13 @@ def _ensure_view_mesh(project_id: str, faces: int | None = None) -> Path:
                 orig_tex = np.asarray(_btex.convert("RGB"), dtype=np.uint8)
             except Exception:  # noqa: BLE001 — doku okunamazsa gri fallback
                 orig_tex = None
+    # Dokusuz ama vertex-renkli kaynak (Idol, TripoSR): renk view dokusuna bake edilir;
+    # yoksa viewer kopyası gri fallback alır ve model renksiz görünür.
+    orig_vcol = None
+    if orig_tex is None and getattr(m.visual, "kind", None) == "vertex":
+        _vc = np.asarray(m.visual.vertex_colors)
+        if len(_vc) == len(m.vertices):
+            orig_vcol = _vc[:, :3].astype(np.uint8)
 
     vertices, tris = m.vertices, m.faces
     if len(tris) > cap:
@@ -427,18 +446,19 @@ def _ensure_view_mesh(project_id: str, faces: int | None = None) -> Path:
         out = trimesh.Trimesh(vertices=out.vertices[vmapping], faces=indices, process=False)
         from PIL import Image
         tex_img = None
-        if orig_tex is not None:
+        if orig_tex is not None or orig_vcol is not None:
             try:
                 # Bake boyutu ORİJİNAL dokuyu izler (1024 tabanı, 2048 tavanı):
                 # 2048'lik dokuyu sabit 1024'e düşürmek yüksek çözünürlük seçen
                 # kullanıcıya "kötü/bulanık" görünüyordu (canlı şikâyet, 200k/500k).
-                bake_size = int(min(2048, max(_VIEW_BAKE_SIZE, max(orig_tex.shape[:2]))))
+                src_px = max(orig_tex.shape[:2]) if orig_tex is not None else _VIEW_BAKE_SIZE
+                bake_size = int(min(2048, max(_VIEW_BAKE_SIZE, src_px)))
                 tex_img = _rebake_view_texture(
                     np.asarray(m.vertices, dtype=np.float64), np.asarray(m.faces),
                     orig_uv, orig_tex,
                     np.asarray(out.vertices, dtype=np.float64),
                     np.asarray(uvs, dtype=np.float64), np.asarray(out.faces),
-                    size=bake_size)
+                    size=bake_size, orig_vcol=orig_vcol)
             except Exception:  # noqa: BLE001 — bake düşerse gri fallback (view yine üretilir)
                 logging.getLogger("gateway.projects").warning(
                     "view dokusu yeniden bake edilemedi (%s, faces=%s); gri fallback",

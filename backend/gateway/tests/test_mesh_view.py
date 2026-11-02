@@ -109,3 +109,24 @@ def test_get_mesh_serves_immediately_and_builds_async(client):
     r2 = client.get(f"/projects/{client.pid}/mesh")
     assert r2.status_code == 200
     assert len(r2.content) == view.stat().st_size
+
+
+def test_vertex_colors_are_baked_into_view_texture(client, monkeypatch):
+    """Dokusuz ama vertex-renkli mesh (Idol, TripoSR): viewer kopyası gri fallback değil,
+    vertex renklerinden bake edilmiş doku taşımalı (canlı vaka 2026-11-02: lacivert tişört gri)."""
+    import numpy as np
+    from gateway.routes import projects as pr
+    monkeypatch.setattr(pr, "_VIEW_MAX_FACES", 300)
+    sph = trimesh.creation.icosphere(subdivisions=3)
+    cols = np.where(sph.vertices[:, :1] > 0, [[220, 20, 20, 255]], [[20, 20, 220, 255]]).astype(np.uint8)
+    sph.visual = trimesh.visual.ColorVisuals(sph, vertex_colors=cols)
+    sph.export(str(client.mesh_dir / "mesh.glb"))
+    view = pr._ensure_view_mesh(client.pid)
+    m = trimesh.load(str(view), force="mesh")
+    tex = np.asarray(m.visual.material.baseColorTexture.convert("RGB"))
+    assert tex.shape[0] > 16  # gri 16x16 fallback değil
+    # yüzeyde örnekle: +x tarafı kırmızı, -x tarafı mavi
+    c = m.visual.to_color().vertex_colors[:, :3].astype(int)
+    right, left = m.vertices[:, 0] > 0.5, m.vertices[:, 0] < -0.5
+    assert c[right, 0].mean() > 150 and c[right, 2].mean() < 80
+    assert c[left, 2].mean() > 150 and c[left, 0].mean() < 80
