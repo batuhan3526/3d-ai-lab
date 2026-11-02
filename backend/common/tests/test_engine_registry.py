@@ -79,3 +79,17 @@ def test_hi3d_is_an_image_refine_engine():
     for preset in spec.quality_presets:
         p = resolve_engine_params("hi3d-refine", preset, None)
         assert p["resolution"] in (512, 1024, 1536) and p["retexture"] is True
+
+
+def test_idol_engine_registered():
+    """Idol: kendi ailesi/kuyruğu, ticari kullanıma açık (Apache-2.0), her preset geçerli."""
+    from common.engines.registry import engine_family, queue_for, resolve_engine_params
+    spec = get_spec("idol-image")
+    assert spec.kind == "image" and "image-to-3d" in spec.capabilities
+    assert spec.commercial_use and spec.available
+    assert engine_family("idol-image") == "idol"
+    assert queue_for("idol-image", 1) == "idol-gpu1"
+    for preset in spec.quality_presets:
+        resolve_engine_params("idol-image", preset, None)
+    with pytest.raises(ValueError):
+        resolve_engine_params("idol-image", "balanced", {"mode": "cartoon"})

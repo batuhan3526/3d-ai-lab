@@ -277,6 +277,7 @@ during model load, not a crash at startup.
 | `trellis-image` | image / multi-view → 3D | ~12 GB | no | MIT · OK |
 | `trellis2-image` | single photo → 3D + PBR, open surfaces | ~18 GB | ✓ DINOv3 | MIT · OK (DINOv3: Meta licence) |
 | `pixal3d-image` | single photo → 3D + PBR, pixel-aligned | ~12 GB | ✓ DINOv3 | MIT · OK (DINOv3: Meta licence) |
+| `idol-image` | single photo → 3D Gaussian splat (+ coloured mesh), seconds | ~8 GB | ✓ DINOv3 | Apache-2.0 · OK (DINOv3: Meta licence) |
 | `triposr` | single photo → 3D (fast) | ~6 GB | no | MIT · OK |
 | `hi3dgen-image` | image / multi-view → 3D | ~14 GB | no | MIT · OK |
 | `partcrafter-image` | single photo, part-aware | ~12 GB | no* | MIT code · pulls NC matte |

@@ -67,10 +67,14 @@ the full commercial/gated/weight-distribution matrix see
   files MUST NOT be redistributed. Register at https://smpl-x.is.tue.mpg.de.
 - **briaai/RMBG-1.4** — non-commercial (matting model pulled by PartCrafter).
 - **DINOv3** — Meta DINOv3 License, gated. Used by meshflow-guided, the TRELLIS.2
-  textured pipeline, `trellis2-image` and `pixal3d-image`. Review Meta's terms; do not
+  textured pipeline, `trellis2-image`, `pixal3d-image` and `idol-image`. Review Meta's terms; do not
   vendor.
 - **Pixal3D** — MIT, © Tencent ARC / Tsinghua. Code + weights (TencentARC/Pixal3D),
   downloaded at install / first run. Uses MoGe-2 (MIT) for camera estimation.
+- **Idol** — Apache-2.0, © speridlabs. Code (speridlabs/idol-sdk) + weights
+  (speridlabs/idol, includes a BiRefNet copy), downloaded at install. Image encoders:
+  DINOv3 ViT-H+/16 (Meta DINOv3 License, gated) and the FLUX.2 VAE, read from
+  black-forest-labs/FLUX.2-klein-4B (Apache-2.0) instead of the gated FLUX.2-dev repo.
 - **UltraTex** — MIT code (yiboz2001/UltraTex), LoRA + decoder from ModelScope
   (Yibo-Zhang/UltraTex). Base model **FLUX.2-klein-base-9B** — FLUX Non-Commercial License
   (Black Forest Labs), gated; text encoder **Qwen3-8B** — Apache-2.0 (Alibaba Qwen). Weights

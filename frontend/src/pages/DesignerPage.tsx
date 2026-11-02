@@ -599,6 +599,11 @@ export default function DesignerPage() {
             className="disabled:opacity-30 rounded-lg px-2 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700" title={t("designer.undoTitle")}>↶</button>
           <button onClick={redo} disabled={!canRedo}
             className="disabled:opacity-30 rounded-lg px-2 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700" title={t("designer.redoTitle")}>↷</button>
+          {project.engine_id === "idol-image" && (
+            <button onClick={() => navigate(`/outputs/${project.id}`)} data-testid="splat-outputs"
+              className="rounded-lg px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700" title={t("designer.splatOutputsTitle")}>
+              {t("designer.splatOutputs")}</button>
+          )}
           <button onClick={() => dupMut.mutate()} disabled={dupMut.isPending}
             className="rounded-lg px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700">{t("designer.duplicate")}</button>
           <button onClick={() => save.mutate()} disabled={save.isPending}

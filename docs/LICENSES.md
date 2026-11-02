@@ -13,7 +13,7 @@ governs redistribution of the checkpoints.
 
 ## Summary by commercial-use status
 
-- **Commercial OK (MIT):** TRELLIS, TRELLIS.2-4B, Pixal3D, TripoSR, Hi3DGen, PartCrafter
+- **Commercial OK (MIT):** TRELLIS, TRELLIS.2-4B, Pixal3D, Idol (Apache-2.0), TripoSR, Hi3DGen, PartCrafter
   *(code)*, VideoMDM *(code)*.
 - **Commercial with conditions / bespoke source-available:** Hunyuan3D-2.1
   (Tencent Community, region + 1M-MAU limits), SF3D (Stability Community, <$1M/yr +
@@ -55,6 +55,7 @@ governs redistribution of the checkpoints.
 | **SMPL-X** (MPI-IS) | SMPL-X / SMPL Model License (Max-Planck) | **prohibited** under research license; commercial needs a separate MPI license | **prohibited** — .pkl files MUST NOT be redistributed | ✓ | Do NOT vendor body_models/smpl/*.pkl (strip from history). User registers at smpl-x.is.tue.mpg.de. |
 | **TRELLIS.2-4B** (microsoft/TRELLIS.2-4B) | MIT | yes | allowed | no | Permissive — safe to reference/integrate commercially and auto-download; but the textured worker pulls GATED DINOv3. |
 | **Pixal3D** (TencentARC/Pixal3D) | MIT | yes | allowed | no (card sets `extra_gated_eu_disallowed`) | Runs on the TRELLIS.2 stack; loads GATED DINOv3 (official repo, not the upstream mirror) and MoGe-2 (MIT) for the camera. Background removal: open BiRefNet (MIT) instead of the gated, non-commercial briaai/RMBG-2.0. |
+| **Idol** (speridlabs/idol) | Apache-2.0 | yes | allowed | no | Photo → 3D Gaussian splat; the worker also derives a vertex-coloured mesh. Loads GATED DINOv3 ViT-H+/16; FLUX.2 VAE from the open FLUX.2-klein-4B repo (Apache-2.0), not the gated FLUX.2-dev. |
 | **UltraTex** (yiboz2001/UltraTex; LoRA + decoder Yibo-Zhang/UltraTex on ModelScope) | MIT (code) | code yes; base model no | LoRA/decoder downloaded from ModelScope, not vendored | via FLUX.2-klein | Image-guided retexturing (`ultratex-retexture`). Runs on **FLUX.2-klein-base-9B** (Black Forest Labs, FLUX Non-Commercial License, gated on Hugging Face → **non-commercial**), **Qwen3-8B** text encoder (Apache-2.0) and the FLUX.2 VAE (Comfy-Org copy of the BFL VAE). |
 | **Hi3D v1.0** (hi3d-official/Hi3Dv1.0, Sparc3D-based; © OCEANO HK HOLDING LIMITED) | Hi3D Open License Agreement 1.0 (code + weights) | **yes, with conditions**: "Powered by Hi3D 1.0" + link to hi3d.ai in the UI/About page; separate written licence once a product using it exceeds 200,000 MAU or USD 1M monthly revenue; Acceptable Use Policy (Schedule 1) | allowed with the full licence text + NOTICE; generated meshes are free of these conditions | no | Image-guided geometry refinement (`hi3d-refine`). Weights downloaded at install, never bundled. Conditioning encoders DINOv2-large (Apache-2.0) and CLIP ViT-L/14 (MIT). The app shows the required link under **Design → Add shape detail (Hi3D)**. |
 | **Base mannequins** (in-house, generated with TRELLIS) | CC0 1.0 (public domain) | yes (no restrictions) | allowed (public domain) | no | Four A/T-pose body GLBs for the mannequin overlay, dressing and 3D sewing. Shipped in `data/templates/mannequins/` (~5 MB). Custom mannequins built from user measurements are generated at runtime and never committed. |

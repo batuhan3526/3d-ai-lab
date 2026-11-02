@@ -107,3 +107,17 @@ def test_media_rejects_bad_paths(client, bad):
 def test_media_404_missing_file(client):
     r = client.get(f"/projects/{client.pid}/outputs/face4d/videos/yok.mp4")
     assert r.status_code == 404
+
+
+def test_idol_splat_outputs_listed_and_served(client):
+    """Idol: ham splat + renkli nokta bulutu Sonuçlar'da (ply) görünür ve indirilebilir."""
+    d = client.proj_dir / "idol"
+    d.mkdir(parents=True)
+    (d / "splat.ply").write_bytes(b"ply splat")
+    (d / "points.ply").write_bytes(b"ply points")
+    (d / "input.png").write_bytes(b"png")
+    r = client.get(f"/projects/{client.pid}/outputs", headers=TOKEN)
+    kinds = {i["path"]: i["kind"] for i in r.json()}
+    assert kinds == {"idol/points.ply": "ply", "idol/splat.ply": "ply"}
+    f = client.get(f"/projects/{client.pid}/outputs/idol/splat.ply")
+    assert f.status_code == 200 and f.content == b"ply splat"

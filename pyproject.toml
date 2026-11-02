@@ -27,4 +27,5 @@ testpaths = [
     "backend/templates_tool/tests",
     "backend/workers/clothsim/tests",
     "backend/workers/cloud/tests",
+    "backend/workers/idol/tests",
 ]

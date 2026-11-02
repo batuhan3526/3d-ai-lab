@@ -636,7 +636,7 @@ def get_decal(project_id: str, name: str, db: Session = Depends(get_db)) -> File
 # çıktıları. Manifest token'lı; medya public_router'da (decals/thumbnail gibi —
 # <video>/<img> Authorization gönderemez). Spec:
 # docs/superpowers/specs/2026-07-12-outputs-viewer-design.md
-_OUTPUT_ROOTS = ("face4d", "gaussian_scene")
+_OUTPUT_ROOTS = ("face4d", "gaussian_scene", "idol")
 _OUTPUT_KINDS = {".mp4": "video", ".gif": "gif", ".ply": "ply"}
 _OUTPUT_MEDIA = {".mp4": "video/mp4", ".gif": "image/gif",
                  ".ply": "application/octet-stream"}

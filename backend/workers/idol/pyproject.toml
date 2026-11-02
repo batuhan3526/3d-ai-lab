@@ -1,0 +1,5 @@
+[project]
+name = "idol-worker"
+version = "0.1.0"
+description = "Idol (speridlabs/idol) image→3D Gaussian splat Celery worker — splat + vertex-coloured mesh"
+requires-python = ">=3.10"

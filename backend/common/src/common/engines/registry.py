@@ -240,6 +240,26 @@ _PIXAL3D_PRESETS = {
     "balanced": {"resolution": 1024, "low_vram": True},
     "quality": {"resolution": 1536, "low_vram": True},
 }
+_IDOL_PARAMS = [
+    {"key": "mode", "label": "Görsel türü", "type": "select", "default": "real", "options": ["real", "synthetic"],
+     "desc": "real: fotoğraf (nesneyi daha geniş kırpar). synthetic: render/üretilmiş görsel (sıkı kırpar)."},
+    {"key": "steps", "label": "Adım", "type": "int", "default": 50, "min": 10, "max": 100,
+     "desc": "Örnekleme adımı. Az = hızlı ama detay kaybı."},
+    {"key": "cfg_strength", "label": "Görsele bağlılık (CFG)", "type": "float", "default": 3.0, "min": 1.0, "max": 10.0, "step": 0.5,
+     "desc": "Nesnenin görsele ne kadar sıkı uyacağı. Aşırısı bozar."},
+    {"key": "num_gaussians", "label": "Gaussian sayısı", "type": "select", "default": 524288,
+     "options": [262144, 524288, 1048576],
+     "desc": "Splat yoğunluğu. Çok = daha dolu yüzey ve daha düzgün mesh, biraz daha yavaş."},
+    {"key": "mesh_resolution", "label": "Mesh çözünürlüğü", "type": "select", "default": 256, "options": [192, 256, 320],
+     "desc": "Splat'tan mesh çıkarılırken ızgara boyutu. Yüksek = ince detay, delik riski artar."},
+    {"key": "seed", "label": "Seed (boş=42)", "type": "int", "default": None, "min": 0, "max": 2147483647,
+     "desc": "Aynı seed + aynı görsel = aynı sonuç."},
+]
+_IDOL_PRESETS = {
+    "fast": {"steps": 25, "num_gaussians": 262144, "mesh_resolution": 192},
+    "balanced": {"steps": 50, "num_gaussians": 524288, "mesh_resolution": 256},
+    "quality": {"steps": 50, "num_gaussians": 1048576, "mesh_resolution": 320},
+}
 _ULTRATEX_PARAMS = [
     {"key": "resolution", "label": "Görünüm çözünürlüğü", "type": "select", "default": 1024, "options": [1024, 2048],
      "desc": "6 görünümün her birinin çözünürlüğü. 2048 = modelin eğitildiği 2K, çok VRAM ister."},
@@ -462,6 +482,19 @@ _REGISTRY: dict[str, EngineSpec] = {
         adapter="pixal3d_worker.engine:Pixal3DImageEngine",
         params=_PIXAL3D_PARAMS,
         presets=_PIXAL3D_PRESETS,
+    ),
+    "idol-image": EngineSpec(
+        id="idol-image",
+        label="Idol Foto→3D (Gaussian splat, hızlı)",
+        kind="image",
+        quality_presets=["fast", "balanced", "quality"],
+        vram_estimate_mb=8000,
+        license="Apache-2.0 (DINOv3 kodlayıcısı: Meta lisansı, HF erişimi gerekir)",
+        description="Tek fotoğraftan saniyeler içinde 3D Gaussian splat; splat'tan renkli mesh de çıkarılır.",
+        capabilities=["image-to-3d"],
+        adapter="idol_worker.engine:IdolImageEngine",
+        params=_IDOL_PARAMS,
+        presets=_IDOL_PRESETS,
     ),
     "ultratex-retexture": EngineSpec(
         id="ultratex-retexture",
